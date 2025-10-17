@@ -2,7 +2,7 @@ import json
 import re
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Set
 
 import requests
 
@@ -41,6 +41,7 @@ class PaperRecord:
     publication_year: Optional[int]
     venue: Optional[str]
     url: str
+    summary: str = ""
     disciplines: List[str] = field(default_factory=list)
     ml_tasks: List[str] = field(default_factory=list)
     datasets: List[DatasetAsset] = field(default_factory=list)
@@ -203,6 +204,73 @@ class PaperContentParser:
         return " ".join(words[:5]) if words else "dataset"
 
 
+class LLMExtractor:
+    """LLM-backed fallback to extract datasets, code, results, and summary.
+
+    Uses the model wired in LLMModule.call_openrouter_tongyi. Expects JSON output.
+    """
+
+    def __init__(self, max_context_chars: int = 8000):
+        self.max_context_chars = max_context_chars
+
+    def extract(self, context: Dict[str, str]) -> Dict[str, Any]:
+        from LLMModule import call_openrouter_tongyi  # local import to avoid hard dep at import time
+
+        title = context.get("title", "")
+        abstract = context.get("abstract", "")
+        url = context.get("url", "")
+        page_text = (context.get("page_text", "") or "")[: self.max_context_chars]
+
+        prompt = (
+            "You are an expert research assistant. Read the provided paper information "
+            "(title, abstract, and optional page text) and extract a structured summary "
+            "with datasets, code repositories, and reported results.\n\n"
+            "Return ONLY a JSON object with this exact schema keys: \n"
+            "{\n"
+            "  \"summary\": string,\n"
+            "  \"datasets\": [ { \"name\": string, \"url\": string, \"description\": string } ],\n"
+            "  \"code\": [ { \"repository_url\": string, \"description\": string } ],\n"
+            "  \"results\": [ { \"metric\": string, \"value\": number, \"dataset_name\": string, \"split\": string, \"notes\": string } ]\n"
+            "}\n\n"
+            "Prefer authoritative links (publisher, dataset homepages, GitHub). If unknown, use empty string.\n"
+            "Keep lists small and relevant.\n\n"
+            f"Title: {title}\n\n"
+            f"Abstract: {abstract}\n\n"
+            f"URL: {url}\n\n"
+            f"Page Text (optional, may be partial):\n{page_text}\n"
+        )
+
+        raw = call_openrouter_tongyi(prompt)
+        return self._parse_json_safely(raw)
+
+    @staticmethod
+    def _parse_json_safely(text: str) -> Dict[str, Any]:
+        # Try direct parse first
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+
+        # Extract first JSON object heuristically
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            try:
+                obj = json.loads(text[start : end + 1])
+                if isinstance(obj, dict):
+                    return obj
+            except Exception:
+                pass
+        return {
+            "summary": "",
+            "datasets": [],
+            "code": [],
+            "results": [],
+        }
+
+
 class ResearchDatasetBuilder:
     def __init__(
         self,
@@ -210,11 +278,17 @@ class ResearchDatasetBuilder:
         paper_client: Optional[SemanticScholarClient] = None,
         content_parser: Optional[PaperContentParser] = None,
         max_results_per_query: int = 100,
+        use_llm_fallback: bool = True,
+        llm_extractor: Optional[LLMExtractor] = None,
+        max_download_size_bytes: int = 200 * 1024 * 1024,
     ):
         self.output_dir = Path(output_dir)
         self.paper_client = paper_client or SemanticScholarClient()
         self.content_parser = content_parser or PaperContentParser()
         self.max_results_per_query = max_results_per_query
+        self.use_llm_fallback = use_llm_fallback
+        self.llm_extractor = llm_extractor or LLMExtractor()
+        self.max_download_size_bytes = max_download_size_bytes
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def build(
@@ -222,6 +296,7 @@ class ResearchDatasetBuilder:
         queries: Sequence[str],
         min_papers: int = 50,
         discipline_tags: Optional[Dict[str, Sequence[str]]] = None,
+        download_assets: bool = False,
     ) -> List[PaperRecord]:
         aggregated: Dict[str, PaperRecord] = {}
         for query in queries:
@@ -244,7 +319,7 @@ class ResearchDatasetBuilder:
         if discipline_tags:
             self._apply_disciplines(records, discipline_tags)
 
-        self._persist_records(records)
+        self._persist_records(records, download_assets=download_assets)
         return records
 
     def _fetch_papers_for_query(self, query: str) -> List[PaperRecord]:
@@ -264,10 +339,68 @@ class ResearchDatasetBuilder:
         return all_records
 
     def _convert_paper(self, raw: Dict[str, Any], query: str) -> PaperRecord:
-        metadata_text = f"{raw.get('title', '')}\n{raw.get('abstract', '')}"
+        title = raw.get('title', '') or ''
+        abstract = raw.get('abstract', '') or ''
+        url = raw.get('url') or ''
+        metadata_text = f"{title}\n{abstract}"
         code_artifacts = self.content_parser.extract_code_links(metadata_text)
         datasets = self.content_parser.extract_datasets(metadata_text)
         results = self.content_parser.extract_results(metadata_text, dataset_hint=query)
+
+        summary = ""
+
+        # LLM fallback if key items are missing
+        if self.use_llm_fallback and (not code_artifacts or not datasets or not results or not summary):
+            try:
+                page_text = self._try_fetch_page_text(url)
+                llm_out = self.llm_extractor.extract(
+                    {"title": title, "abstract": abstract, "url": url, "page_text": page_text}
+                )
+                # Merge datasets
+                llm_datasets = [
+                    DatasetAsset(
+                        name=(d.get("name") or "dataset"),
+                        url=(d.get("url") or ""),
+                        description=d.get("description") or "",
+                    )
+                    for d in (llm_out.get("datasets") or [])
+                    if isinstance(d, dict)
+                ]
+                datasets = self._merge_datasets(datasets, llm_datasets)
+                # Merge code
+                llm_code = [
+                    CodeArtifact(
+                        repository_url=(c.get("repository_url") or c.get("url") or ""),
+                        description=c.get("description") or "",
+                    )
+                    for c in (llm_out.get("code") or [])
+                    if isinstance(c, dict)
+                ]
+                code_artifacts = self._merge_code(code_artifacts, llm_code)
+                # Merge results
+                llm_results = []
+                for r in (llm_out.get("results") or []):
+                    if not isinstance(r, dict):
+                        continue
+                    try:
+                        value = float(r.get("value"))
+                    except Exception:
+                        continue
+                    llm_results.append(
+                        ResultRecord(
+                            metric=str(r.get("metric") or "metric"),
+                            value=value,
+                            dataset_name=str(r.get("dataset_name") or query or "unspecified"),
+                            split=(r.get("split") or None),
+                            notes=str(r.get("notes") or ""),
+                        )
+                    )
+                results = self._merge_results(results, llm_results)
+                # Summary
+                summary = str(llm_out.get("summary") or "").strip()
+            except Exception:
+                # LLM fallback failed; proceed with heuristics only
+                pass
 
         authors = [a.get("name", "") for a in raw.get("authors", []) if a]
         venue = raw.get("journal", {}).get("name") if raw.get("journal") else None
@@ -278,12 +411,13 @@ class ResearchDatasetBuilder:
         paper_id = external_ids.get("DOI") or external_ids.get("CorpusId") or raw.get("paperId") or raw.get("url")
         return PaperRecord(
             paper_id=str(paper_id),
-            title=raw.get("title") or "",
-            abstract=raw.get("abstract") or "",
+            title=title,
+            abstract=abstract,
+            summary=summary,
             authors=[author for author in authors if author],
             publication_year=publication_year,
             venue=venue,
-            url=raw.get("url") or "",
+            url=url,
             disciplines=raw.get("fieldsOfStudy") or [],
             ml_tasks=[query],
             datasets=datasets,
@@ -304,7 +438,7 @@ class ResearchDatasetBuilder:
                     inferred.append(discipline)
             record.disciplines = sorted(set(inferred))
 
-    def _persist_records(self, records: Sequence[PaperRecord]) -> None:
+    def _persist_records(self, records: Sequence[PaperRecord], download_assets: bool = False) -> None:
         meta_dir = self.output_dir / "metadata"
         data_dir = self.output_dir / "data"
         meta_dir.mkdir(parents=True, exist_ok=True)
@@ -317,6 +451,8 @@ class ResearchDatasetBuilder:
             summary_path = meta_dir / f"{slug}.md"
             record_path.write_text(json.dumps(record.to_dict(), indent=2), encoding="utf-8")
             summary_path.write_text(self._render_summary_markdown(record), encoding="utf-8")
+            if download_assets:
+                self._download_assets(record, data_dir / slug)
             index_payload.append(
                 {
                     "paper_id": record.paper_id,
@@ -348,6 +484,9 @@ class ResearchDatasetBuilder:
             f"- Authors: {', '.join(record.authors) if record.authors else 'Unknown'}",
             f"- Disciplines: {', '.join(record.disciplines) if record.disciplines else 'Uncategorized'}",
             f"- ML Tasks: {', '.join(record.ml_tasks) if record.ml_tasks else 'Unspecified'}",
+            "",
+            "## Summary",
+            (record.summary or "Not available."),
             "",
             "## Abstract",
             record.abstract or "Not available.",
@@ -391,3 +530,89 @@ class ResearchDatasetBuilder:
             lines.append("No metrics extracted.")
 
         return "\n".join(lines)
+
+    # ---------- helpers ----------
+    @staticmethod
+    def _merge_datasets(primary: List[DatasetAsset], fallback: List[DatasetAsset]) -> List[DatasetAsset]:
+        seen: Set[str] = set()
+        out: List[DatasetAsset] = []
+        for ds in list(primary) + list(fallback):
+            key = (ds.url or ds.name or "").strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(ds)
+        return out
+
+    @staticmethod
+    def _merge_code(primary: List[CodeArtifact], fallback: List[CodeArtifact]) -> List[CodeArtifact]:
+        seen: Set[str] = set()
+        out: List[CodeArtifact] = []
+        for c in list(primary) + list(fallback):
+            key = (c.repository_url or "").strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(c)
+        return out
+
+    @staticmethod
+    def _merge_results(primary: List[ResultRecord], fallback: List[ResultRecord]) -> List[ResultRecord]:
+        def k(r: ResultRecord) -> Tuple[str, str, float]:
+            return (r.metric.strip().lower(), r.dataset_name.strip().lower(), round(float(r.value), 6))
+
+        seen: Set[Tuple[str, str, float]] = set()
+        out: List[ResultRecord] = []
+        for r in list(primary) + list(fallback):
+            key = k(r)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(r)
+        return out
+
+    @staticmethod
+    def _try_fetch_page_text(url: str, timeout: int = 15) -> str:
+        if not url:
+            return ""
+        try:
+            resp = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+            if resp.ok and resp.headers.get("content-type", "").startswith("text/"):
+                text = resp.text
+                # strip scripts/styles crudely
+                text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.IGNORECASE)
+                text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.IGNORECASE)
+                return re.sub(r"\s+", " ", text)
+        except Exception:
+            return ""
+        return ""
+
+    def _download_assets(self, record: PaperRecord, dest_dir: Path) -> None:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for asset in record.datasets:
+            url = (asset.url or "").strip()
+            if not url or not url.startswith("http"):
+                continue
+            try:
+                head = requests.head(url, allow_redirects=True, timeout=15)
+                size = int(head.headers.get("content-length" , "0") or 0)
+                if size and size > self.max_download_size_bytes:
+                    continue
+                filename = self._derive_filename(url, asset)
+                target = dest_dir / filename
+                with requests.get(url, stream=True, timeout=30) as r:
+                    r.raise_for_status()
+                    with open(target, "wb") as f:
+                        for chunk in r.iter_content(chunk_size=1024 * 1024):
+                            if chunk:
+                                f.write(chunk)
+            except Exception:
+                # best-effort download; skip on errors
+                continue
+
+    @staticmethod
+    def _derive_filename(url: str, asset: DatasetAsset) -> str:
+        tail = url.split("?")[0].rstrip("/").split("/")[-1]
+        if not tail:
+            tail = re.sub(r"[^a-z0-9\-]+", "-", asset.name.lower())[:40] or "dataset"
+        return tail

@@ -1,5 +1,6 @@
 import pandas as pd
 from ResearchEval import evaluate_research
+import ClaudeSDKClient
 
 class GreenAgent:
     def __init__(self, task_config):

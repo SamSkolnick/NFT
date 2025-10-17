@@ -37,4 +37,16 @@ The builder writes:
 - `metadata/<paper_id>.md` – human-readable summary with abstract and pointers.
 - `data/` – reserved for future raw artifact downloads.
 
-Set the `GITHUB_TOKEN` environment variable to enrich repository details; set Semantic Scholar rate limits externally if needed. Network access is required for live scraping, but the module can be tested offline by mocking the client classes.
+LLM fallback is enabled by default to fill missing datasets/code/results/summary using a structured JSON prompt. To disable: `ResearchDatasetBuilder(..., use_llm_fallback=False)`. Set `OPENROUTER_API_KEY` in your environment for LLM calls.
+
+Optionally download referenced datasets (best-effort, capped size):
+
+```python
+records = builder.build(
+    queries=[...],
+    min_papers=50,
+    download_assets=True,   # saves files under research_datasets/data/<paper_slug>/
+)
+```
+
+Set `GITHUB_TOKEN` to enrich repository details; manage Semantic Scholar rate limits externally. Network access is required for live scraping; you can test offline by mocking the client classes.
