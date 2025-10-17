@@ -1,3 +1,4 @@
+# LLMModule.py
 # Interface for calling LLMs for agent to make it easier to switch them out
 # pip install openai
 from openai import OpenAI
@@ -8,8 +9,11 @@ def call_openrouter_tongyi(prompt: str) -> str:
     resp = client.chat.completions.create(
         model="alibaba/tongyi-deepresearch-30b-a3b",
         messages=[{"role": "user", "content": prompt}],
-        # Optional: stream=True for token streaming
+        temperature=0,
+        top_p=0,
+        n=1,
+        presence_penalty=0,
+        frequency_penalty=0,
+        response_format={"type": "json_object"},
     )
     return resp.choices[0].message.content
-
-

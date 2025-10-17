@@ -2,78 +2,98 @@
 from __future__ import annotations
 import json
 from typing import List
-from LLMModule import call_openrouter_tongyi  # uses your OpenRouter/OpenAI-compatible interface
+from LLMModule import call_openrouter_tongyi
 
 
-def evaluate(kaggle_prompt: str, source_code: str, predictions: List[float]) -> float:
+def evaluate(kaggle_prompt: str, source_code: str, predictions: List[float]) -> int:
     """
-    Score a submission using ONLY the LLM.
-    Inputs:
-      - kaggle_prompt: competition/task plan text
-      - source_code:   pipeline/source code as a string
-      - predictions:   list of numeric predictions (labels or probabilities)
-    Returns:
-      - score: float in [0, 1] produced by the LLM
-    Raises:
-      - ValueError if the LLM response cannot be parsed or doesn't provide a score.
+    LLM-only scoring focused on TWO things:
+      1) Code quality / expected behavior for a Kaggle pipeline.
+      2) Whether the CSV-style predictions align with the competition's expectations.
+
+    Returns an integer score in [1, 10].
     """
     preds_preview, pred_count = _preview_predictions(predictions)
 
     prompt = f"""
-You are a strict Kaggle pre-submission reviewer. Evaluate the quality of this submission
-PURELY as a single numeric score in [0,1] (0 = unusable, 1 = excellent).
-Consider: clarity/rigor of the plan, code soundness for competitive ML (sanity, hygiene,
-reproducibility risk, leakage risk), and whether the predictions look plausible for the task.
+You are a strict Kaggle pre-submission reviewer. Score ONLY:
+(1) code quality & expected behavior, and
+(2) whether the predictions/CSV align with the competition requirements.
 
-Return STRICT JSON with this schema and NOTHING ELSE:
-{{
-  "score": <number in [0,1]>
-}}
+Ignore scientific novelty, model choice, and performance beyond schema/expectations.
 
---- KAGGLE_PROMPT ---
-{kaggle_prompt}
+Return ONE integer score in [1,10] (1=unusable, 10=excellent) using this EXACT rubric:
+
+Components (each 0..10; use defaults if info is missing):
+- code_quality (default 5): clean structure, sensible imports, readable functions, clear data I/O, fixed seeds, no obviously dangerous calls, minimal hygiene (paths/configs).
+- expected_behavior (default 5): pipeline likely runs end-to-end without errors for typical Kaggle limits; uses correct metric/validation shape; produces a submission in the required format.
+- csv_alignment (default 5): predictions match the competition's submission expectations (e.g., correct length, type/range, and format). For the HIV task described, expect 692 rows of binary labels 0/1 in the second column; if only a list of predictions is shown here, judge whether values look like valid 0/1 labels and the count matches 692.
+
+Exact formula (no deviation):
+S_raw = 0.45*code_quality + 0.35*expected_behavior + 0.20*csv_alignment
+S_10  = round( max(1, min(10, S_raw)) )
+
+Return STRICT JSON and NOTHING ELSE:
+{{ "score": <integer in [1,10]> }}
+
+--- VERSION ---
+code_csv_focus_v1
+
+--- KAGGLE_PROMPT (for context) ---
+{_normalize(kaggle_prompt)}
 
 --- SOURCE_CODE (Python) ---
-{source_code}
+{_normalize(source_code)}
 
---- PREDICTIONS ---
+--- PREDICTIONS PREVIEW ---
 # count: {pred_count}
-# sample (up to 200):
+# head (up to 20 shown):
 {preds_preview}
 """.strip()
 
-    raw = call_openrouter_tongyi(prompt)  # must return text; we expect JSON with {"score": ...}
+    raw = call_openrouter_tongyi(prompt)
     score = _extract_score(raw)
+    score = int(max(1, min(10, round(score))))
     return score
 
 
 def _preview_predictions(preds: List[float]) -> tuple[str, int]:
-    if preds is None:
+    if not preds:
         return "[]", 0
-    # keep prompt small but informative
-    preview = preds[:200]
-    return json.dumps(preview), len(preds)
+    preview = preds[:20]
+    try:
+        return json.dumps([float(x) for x in preview]), len(preds)
+    except Exception:
+        return json.dumps([str(x) for x in preview]), len(preds)
 
 
-def _extract_score(raw_text: str) -> float:
-    # try direct JSON
+def _normalize(text: str) -> str:
+    if not text:
+        return ""
+    return "\n".join(line.rstrip() for line in text.strip().splitlines())
+
+
+def _extract_score(raw_text: str) -> int:
     try:
         obj = json.loads(raw_text)
-        score = float(obj["score"])
-        if 0.0 <= score <= 1.0:
-            return score
+        return _to_int_1_10(obj["score"])
     except Exception:
         pass
-
-    # try to find a JSON object substring
     start, end = raw_text.find("{"), raw_text.rfind("}")
     if start != -1 and end != -1 and end > start:
         try:
             obj = json.loads(raw_text[start:end+1])
-            score = float(obj["score"])
-            if 0.0 <= score <= 1.0:
-                return score
+            return _to_int_1_10(obj["score"])
         except Exception:
             pass
+    raise ValueError(f"LLM did not return a valid JSON score in [1,10]. Raw response: {raw_text!r}")
 
-    raise ValueError(f"LLM did not return a valid JSON score in [0,1]. Raw response: {raw_text!r}")
+
+def _to_int_1_10(val) -> int:
+    try:
+        num = float(val)
+    except Exception:
+        raise ValueError("score is not numeric")
+    if num < 1 or num > 10:
+        num = max(1.0, min(10.0, num))
+    return int(round(num))
