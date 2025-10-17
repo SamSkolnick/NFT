@@ -1,0 +1,87 @@
+Background
+This contest focuses on using the nucleotide sequence of the Reverse Transcriptase (RT) and Protease (PR) to predict the patient's short-term progression. For the non-Biologist: the nucleotide sequence is the blueprint of the protein, which is the workhorse of the cell.  The RT enzyme is responsible for copying the HIV-1 genome within the cell. As the HIV-1 genome is translated it is in one long string of amino acids; the PR protein cuts this string into the numerous functional units - required by the HIV life-cycle. These are the proteins that are targeted by most HIV-1 drugs since they are mostly unique to the HIV-1 life-cycle.  
+
+Along with the HIV-1 viral sequences I have provided the two common clinical indicators used to determine the "general health" of an HIV-1 infected individual: Viral Load and CD4+ cell counts.  The CD4+ cell count is an estimate of the number of white-blood-cells in 1 mL of blood while the viral load is the number of viral particles in that same mL.  In this dataset the viral load is represented in a log-10 scale.  The higher the number the more "active" the immune system. Paradoxically higher CD4 counts imply both a healthier individual but also a higher amount of viral reproduction (the virus primarily replicates in CD4 cells).
+
+
+If you're interested in learning more about the HIV lifecycle and HIV treatments, here are some extra resources:
+http://en.wikipedia.org/wiki/HIV
+http://www.youtube.com/watch?v=RO8MP3wMvqg&feature=related
+http://www.hiv.lanl.gov/content/sequence/HIV/HIVTools.html
+http://en.wikipedia.org/wiki/HIV_therapy#Treatment
+Custom
+The previous attempts to find markers in sequence fall into two general camps: alignment and feature extraction.  
+
+Alignment methods use multiple sequence alignments to look for mutations which are highly correlated with outcome.  However, the high mutability of the HIV-1 makes this technique difficult ... though not impossible.  
+
+Feature extraction methods try to find consistent markers in each sequence; ie. k-mers, regular-expressions, or known resistance conferring mutations.  These are easier to process from a machine-learning point of view but may be difficult to annotate in a large corpus of sequences like this one.
+Custom
+This competition was organized by William Dampier. You can visit his blog at http://www.willdampier.info/.
+Description
+According to the World Health Organization, HIV has caused 25 millions deaths worldwide since it was first recognized in 1981. In recent years, the infection has been managed with a collection of therapies. However, the virus will likely evolve around these drugs, making it crucially important that we get a better understanding of the virus itself. 
+
+An important step in understanding the virus, is to get a handle on its genetic blueprint. This competition aims to do this by having contestants find markers in the HIV sequence which predict a change in the severity of the infection (as measured by viral load and CD4 counts).
+
+Models can be trained using the records of 1,000 patients. To predict an improvement in a patient's viral load, competitors will be provided with data on the nucleotide sequences of their Reverse Transcriptase (RT) their Protease (PR) and their viral load and CD4 count at the beginning of therapy. There is a brief discussion of the science of these variables in the Background section, but no knowledge of biology is necessary to succeed in this competition. Competitors' predictions will be tested on a dataset containing 692 patients.         
+
+There is $USD500 up for grabs, and the winner(s) will also have the opportunity to co-author a paper with the competition host. The winner must supply their methodology before any prize money is awarded. 
+Evaluation
+The evaluation method is the misclassification error rate, which calculates the number of incorrect predictions as a proportion of the total number of predictions. This means that a contestant is punished equally for a false positive and a false negative prediction.
+
+The score quoted on the leaderboard is 1 less the misclassification rate - so the higher the score the better. Also note that the public leaderboard is calculated based on 30 per cent of the submission to prevent contestants from overfitting their models. The full leaderboard will be revealed after the competition deadline passes.  
+Prizes
+The winner gets a $USD500 cash prize. If there are multiple winners, the prize is shared between between them. 
+
+The winner(s) will also have the opportunity to co-author an article with the competition host. 
+SubmissionInstructions
+Your submission must contain predictions for 692 patients. 
+
+Submissions must be in CSV format. template.csv is a submission template. You are expected to fill your predicted responder status in column 2. A responder status of 1 indicates that a patient has improved; or 0 otherwise. example.csv is an example submission. 
+
+Rules
+One account per participant
+You cannot sign up to Kaggle from multiple accounts and therefore you cannot submit from multiple accounts.
+
+No private sharing outside teams
+Privately sharing code or data outside of teams is not permitted. It's okay to share code if made available to all participants on the forums.
+
+Team Mergers
+Team mergers are allowed and can be performed by the team leader. In order to merge, the combined team must have a total submission count less than or equal to the maximum allowed as of the merge date. The maximum allowed is the number of submissions per day multiplied by the number of days the competition has been running.
+
+Team Limits
+There is no maximum team size.
+
+Submission Limits
+You may submit a maximum of 4 entries per day.
+
+You may select up to 4 final submissions for judging.
+
+Competition Timeline
+Start Date: 4/27/2010 9:29 PM UTC
+
+Merger Deadline: None
+
+Entry Deadline: None
+
+End Date: 8/2/2010 12:32 PM UTC
+
+Citation
+Will Dampier. Predict HIV Progression. https://kaggle.com/competitions/hivprogression, 2010. Kaggle.
+
+
+These sequences are from patients who had only recently contracted HIV-1 and had not been treated before.
+
+The Dataset is organized as follows:
+Col-1: patient ID
+Col-2: responder status ("1" for patients who improved and "0" otherwise)
+Col-3: Protease nucleotide sequence (if available)
+Col-4: Reverse Transciptase nucleotide sequence (if available)
+Col-5: viral load at the beginning of therapy (log-10 units)
+Col-6: CD4 count at the beginning of therapy
+
+The Responder status indicates whether the patient improved after 16 weeks of therapy.  Improvement is defined as a 100-fold decrease in the HIV-1 viral load.
+
+There's a brief description of Protease nucleotide sequence, Reverse Transciptase nucleotide sequence, viral load and CD4 count on the background page. 
+
+training_data.csv is the training dataset used to calibrate your model. 
+test_data.csv is the test datset used to generate submissions.
