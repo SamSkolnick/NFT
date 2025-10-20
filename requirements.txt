@@ -1,0 +1,14 @@
+a2a-sdk[http-server]>=0.3.9
+anthropic
+boto3
+chromadb
+docker
+dropbox
+openai>=1.0.0
+pandas
+requests
+scikit-learn
+sse-starlette
+fastapi>=0.115.0
+starlette
+uvicorn
