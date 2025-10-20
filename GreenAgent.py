@@ -3,6 +3,7 @@ from ResearchEval import evaluate_research
 import ClaudeSDKClient
 from Memory import collection
 import time
+import docker
 import chromadb
 import os
 
@@ -28,17 +29,19 @@ class GreenAgent:
         """
         results = {}
         
-        # 1. Evaluate Research (BEFORE running solution)
+        # 1. Run Solution
+        execution = self.run_white_agent(
+            submission['docker_image'],
+            self.task_data_path
+        )
+        
+        # 2. Evaluate Research (BEFORE running solution)
         results['research'] = evaluate_research(
             submission['research_artifacts'],
             storage=submission['storage_method']
         )
         collection.
-        # 2. Run Solution
-        execution = self.run_white_agent(
-            submission['docker_image'],
-            self.task_data_path
-        )
+        
         
         # 3. Check Constraints
         results['constraints'] = self.check_constraints(
@@ -87,53 +90,85 @@ class GreenAgent:
         return evaluation
     
     def run_white_agent(self, docker_image, task_path):
-        """
-        Non-agentic: just run container and collect results
-        """
-        import docker
-        client = docker.from_env()
-        
-        # Create output directory
-        output_path = f"/tmp/outputs_{uuid.uuid4()}"
-        os.makedirs(output_path)
-        
-        # Run with resource limits
+    """
+    Runs the white agent's container in a secure, isolated environment,
+    collects the results, and enforces resource constraints.
+    """
+    client = docker.from_env()
+    
+    # Create a unique output directory on the host machine
+    output_path = f"/tmp/outputs_{uuid.uuid4().hex}"
+    os.makedirs(output_path)
+    
+    # ## UPDATE: Get resource limits from the agent's constraints attribute
+    # Provides default values if a specific constraint is not set.
+    mem_limit_mb = self.constraints.get('max_memory_mb', 8192)
+    cpu_limit = float(self.constraints.get('max_cpus', 2.0))
+    timeout_seconds = self.constraints.get('max_time_seconds', 3600)
+
+    try:
+        # Run the container with resource limits and security settings
         container = client.containers.run(
             docker_image,
+            
+            # ## UPDATE: Disable networking for security to prevent data exfiltration.
+            network_mode="none",
+            
+            # ## UPDATE: Add a mount for the unlabeled test set.
             volumes={
                 f"{task_path}/train": {'bind': '/data/train', 'mode': 'ro'},
                 f"{task_path}/val": {'bind': '/data/val', 'mode': 'ro'},
+                f"{task_path}/test": {'bind': '/data/test', 'mode': 'ro'},
                 output_path: {'bind': '/output', 'mode': 'rw'}
             },
-            mem_limit="8g",
-            cpu_quota=200000,  # 2 CPUs
+            
+            # ## UPDATE: Use dynamic constraints from the class.
+            mem_limit=f"{mem_limit_mb}m", # 'm' for megabytes
+            cpus=cpu_limit,
+            
             detach=True,
-            remove=False  # Keep for inspection if needed
+            remove=False  # We will remove it in the 'finally' block
         )
         
-        # Wait with timeout
+        # Wait for the container to finish, with a dynamic timeout
         start_time = time.time()
-        try:
-            result = container.wait(timeout=3600)  # 1 hour
-            elapsed_time = time.time() - start_time
-            
-            # Get resource usage
-            stats = container.stats(stream=False)
-            
-            return {
-                'success': result['StatusCode'] == 0,
-                'predictions': f"{output_path}/predictions.csv",
-                'time_seconds': elapsed_time,
-                'memory_used_mb': stats['memory_stats']['usage'] / 1024 / 1024,
-                'logs': container.logs().decode('utf-8')
-            }
-        except docker.errors.ContainerError as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
-        finally:
-            container.remove()
+        result = container.wait(timeout=timeout_seconds)
+        elapsed_time = time.time() - start_time
+        
+        # Get final resource usage stats
+        stats = container.stats(stream=False)
+        
+        # Collect logs before the container is removed
+        logs = container.logs().decode('utf-8')
+
+        return {
+            'success': result['StatusCode'] == 0,
+            'output_path': output_path, # Return the path for the evaluator
+            'time_seconds': elapsed_time,
+            'memory_used_mb': stats['memory_stats']['max_usage'] / (1024 * 1024),
+            'logs': logs
+        }
+    except docker.errors.ContainerError as e:
+        # This catches errors where the process inside the container fails
+        return {
+            'success': False,
+            'error': "Container process exited with an error.",
+            'logs': container.logs().decode('utf-8')
+        }
+    except Exception as e:
+        # This catches other errors, like the timeout being exceeded
+        return {
+            'success': False,
+            'error': str(e),
+            'logs': ""
+        }
+    finally:
+        # Ensure the container is always stopped and removed to prevent orphans
+        if 'container' in locals():
+            try:
+                container.remove(force=True)
+            except docker.errors.NotFound:
+                pass # Container was already removed
     
     def check_constraints(self, execution, constraints):
         """
