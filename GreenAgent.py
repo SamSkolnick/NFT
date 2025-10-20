@@ -1,12 +1,21 @@
 import pandas as pd
 from ResearchEval import evaluate_research
 import ClaudeSDKClient
+from Memory import collection
+import time
+import chromadb
+import os
 
 class GreenAgent:
     def __init__(self, task_config):
         self.task_data_path = task_config['data_path']
         self.constraints = task_config['constraints']  # time, memory, etc.
         self.test_labels = task_config['test_labels']  # Hidden from white agent
+        self.db_client = chromadb.PersistentClient(path="./agent_memory_db")
+        
+        # 2. Get or create the collection and store it as an attribute.
+        self.collection_name = "evaluation_results"
+        self.eval_collection = self.db_client.get_or_create_collection(name=self.collection_name)
         
     def evaluate(self, submission):
         """
@@ -24,7 +33,7 @@ class GreenAgent:
             submission['research_artifacts'],
             storage=submission['storage_method']
         )
-        
+        collection.
         # 2. Run Solution
         execution = self.run_white_agent(
             submission['docker_image'],
