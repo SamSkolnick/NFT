@@ -7,13 +7,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Union
 
-import chromadb
 import docker
 import pandas as pd
-from docker.errors import APIError, ContainerError, NotFound
+from docker.errors import APIError, ContainerError, DockerException, ImageNotFound, NotFound
 
 from ResearchEval import evaluate_research
-from Memory import collection
+from Memory import ChromaMemory, store_memory
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +36,15 @@ class GreenAgent:
             if key not in self.constraints:
                 self.constraints[key] = value
 
-        self.db_client = chromadb.PersistentClient(path="./agent_memory_db")
-
         self.collection_name = "evaluation_results"
-        self.eval_collection = self.db_client.get_or_create_collection(name=self.collection_name)
+        try:
+            self.eval_memory = ChromaMemory(collection_name=self.collection_name)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "ChromaDB is required for the Green Agent. Install dependencies with "
+                "`pip install -r requirements.txt` before running evaluations."
+            ) from exc
+        self.eval_collection = self.eval_memory.collection
 
     def evaluate(self, submission: dict) -> dict:
         """
@@ -52,6 +56,8 @@ class GreenAgent:
                 docker_image=submission["docker_image"],
                 task_path=self.task_data_path,
                 command=submission.get("eval_command"),
+                auth_config=self._extract_auth_config(submission),
+                pull_image=submission.get("pull_image", True),
             )
             research_future = executor.submit(
                 evaluate_research,
@@ -86,6 +92,8 @@ class GreenAgent:
         docker_image: str,
         task_path: Path,
         command: Optional[Union[str, Sequence[str]]] = None,
+        auth_config: Optional[dict] = None,
+        pull_image: bool = True,
     ) -> dict:
         """
         Runs the white agent's container against the hidden evaluation data.
@@ -108,6 +116,32 @@ class GreenAgent:
         timeout_seconds = self.constraints.get("max_time_seconds", 3600)
 
         container = None
+        image_pulled = False
+        pull_error: Optional[str] = None
+
+        if pull_image:
+            need_pull = True
+            try:
+                client.images.get(docker_image)
+                need_pull = False
+                logger.info("Found docker image '%s' locally; skipping pull.", docker_image)
+            except ImageNotFound:
+                need_pull = True
+            except DockerException as exc:
+                logger.debug("Error checking local image cache for '%s': %s", docker_image, exc, exc_info=True)
+
+            if need_pull:
+                try:
+                    client.images.pull(docker_image, auth_config=auth_config)
+                    image_pulled = True
+                    logger.info("Pulled docker image '%s' for evaluation.", docker_image)
+                except ImageNotFound as exc:
+                    pull_error = f"Image not found during pull: {exc}"
+                    logger.warning("Unable to pull image '%s': %s", docker_image, pull_error)
+                except (APIError, DockerException) as exc:
+                    pull_error = str(exc)
+                    logger.warning("Failed to pull image '%s': %s", docker_image, pull_error)
+
         try:
             container = client.containers.run(
                 docker_image,
@@ -140,8 +174,10 @@ class GreenAgent:
                 "time_seconds": elapsed_time,
                 "memory_used_mb": self._extract_memory_usage(stats),
                 "logs": logs,
+                "image_pulled": image_pulled,
+                "pull_error": pull_error,
             }
-        except (ContainerError, APIError, NotFound) as exc:
+        except (ContainerError, APIError, ImageNotFound, NotFound) as exc:
             error_logs = container.logs().decode("utf-8", errors="replace") if container else ""
             return {
                 "success": False,
@@ -151,6 +187,8 @@ class GreenAgent:
                 "time_seconds": 0.0,
                 "memory_used_mb": 0.0,
                 "logs": error_logs,
+                "image_pulled": image_pulled,
+                "pull_error": pull_error or str(exc),
             }
         except Exception as exc:
             return {
@@ -161,6 +199,8 @@ class GreenAgent:
                 "time_seconds": 0.0,
                 "memory_used_mb": 0.0,
                 "logs": "",
+                "image_pulled": image_pulled,
+                "pull_error": pull_error or str(exc),
             }
         finally:
             if container:
@@ -236,6 +276,30 @@ class GreenAgent:
             return str(csv_files[0].resolve())
         return None
 
+    def _extract_auth_config(self, submission: dict) -> Optional[dict]:
+        """
+        Normalize optional docker credential payloads from the submission.
+        Supports docker_credentials, docker_auth, and registry_auth keys.
+        """
+        candidates = [
+            submission.get("docker_credentials"),
+            submission.get("docker_auth"),
+            submission.get("registry_auth"),
+        ]
+        for candidate in candidates:
+            auth = self._normalize_auth(candidate)
+            if auth:
+                return auth
+        return None
+
+    @staticmethod
+    def _normalize_auth(candidate: Optional[dict]) -> Optional[dict]:
+        if not isinstance(candidate, dict):
+            return None
+        allowed_keys = {"username", "password", "email", "registry", "identitytoken"}
+        normalized = {key: value for key, value in candidate.items() if key in allowed_keys and value}
+        return normalized or None
+
     @staticmethod
     def _extract_memory_usage(stats: dict) -> float:
         try:
@@ -274,16 +338,16 @@ class GreenAgent:
         }
         payload = json.dumps(summary, default=str)
 
-        self.eval_collection.upsert(
-            documents=[payload],
-            metadatas=[{"collection": self.collection_name}],
-            ids=[doc_id],
+        self.eval_memory.upsert(
+            doc_id=doc_id,
+            document=payload,
+            metadata={"collection": self.collection_name},
         )
         try:
-            collection.upsert(
-                documents=[payload],
-                metadatas=[{"collection": self.collection_name}],
-                ids=[doc_id],
+            store_memory(
+                doc_id=doc_id,
+                document=payload,
+                metadata={"collection": self.collection_name},
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("Unable to upsert into shared memory collection: %s", exc)
