@@ -1,10 +1,8 @@
-Found existing .ab/agents file from previous runs, cleaning up...
-INFO:     Started server process [63096]
+INFO:     Started server process [90611]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-ERROR:    [Errno 48] error while attempting to bind on address ('0.0.0.0', 8010): address already in use
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
+INFO:     Uvicorn running on http://0.0.0.0:8010 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54394 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
 Process Process-1:
 Traceback (most recent call last):
   File "/opt/homebrew/Cellar/python@3.13/3.13.2/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/process.py", line 313, in _bootstrap
@@ -13,7 +11,12 @@ Traceback (most recent call last):
   File "/opt/homebrew/Cellar/python@3.13/3.13.2/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/process.py", line 108, in run
     self._target(*self._args, **self._kwargs)
     ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/lib/python3.13/site-packages/agentbeats/controller.py", line 199, in maintain_agent_process
-    with open(os.path.join(agent_folder, "state"), "r") as f:
-         ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: '.ab/agents/40696036ea89446ba091a4092d2a5319/state'
+  File "/Users/samuelskolnick/MLEngineer/GreenAgentController.py", line 218, in maintain_agent_process
+    try:
+    
+FileNotFoundError: [Errno 2] No such file or directory: '.ab/agents/2a734d7370d346b3babbe2bad53d8cf7/state'
+INFO:     127.0.0.1:54880 - "GET / HTTP/1.1" 307 Temporary Redirect
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [90611]

@@ -215,8 +215,18 @@ def maintain_agent_process(agent_id: str):
     skip_sleep = False
     while True:
         # check the agent status
-        with open(os.path.join(agent_folder, "state"), "r") as f:
-            state = f.read().strip()
+        try:
+            with open(os.path.join(agent_folder, "state"), "r") as f:
+                state = f.read().strip()
+        except FileNotFoundError:
+            # Retry a few times if the state file is missing (e.g. during startup race)
+            time.sleep(0.5)
+            try:
+                with open(os.path.join(agent_folder, "state"), "r") as f:
+                    state = f.read().strip()
+            except FileNotFoundError:
+                print(f"Warning: State file not found for agent {agent_id}, assuming pending...")
+                state = "pending"
 
         if state == "pending":
             agent_port = find_unoccupied_port()

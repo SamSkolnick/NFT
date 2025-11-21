@@ -23,8 +23,8 @@ CF_PID=$!
 echo "   Waiting for tunnel URL..."
 PUBLIC_URL=""
 for i in {1..60}; do
-    if grep -q "https://.*\.trycloudflare\.com" /tmp/cf_tunnel.log; then
-        PUBLIC_URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cf_tunnel.log | head -1)
+    if grep -a -q "https://.*\.trycloudflare\.com" /tmp/cf_tunnel.log; then
+        PUBLIC_URL=$(grep -a -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cf_tunnel.log | head -1)
         break
     fi
     sleep 2
@@ -71,7 +71,7 @@ echo ""
 
 # Run Controller (this will start the agent via run.sh)
 # Run Patched Controller (this will start the agent via run.sh)
-python GreenAgentController.py
+/opt/homebrew/opt/python@3.13/bin/python3.13 GreenAgentController.py
 
 # Cleanup (runs when agentbeats exits)
 kill $CF_PID 2>/dev/null
