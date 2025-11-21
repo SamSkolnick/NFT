@@ -1,0 +1,9 @@
+{
+  "data_path": "/Users/samuelskolnick/MLEngineer/white_agent_titanic/data",
+  "test_labels": "/Users/samuelskolnick/MLEngineer/sample_tasks/titanic/test_labels.csv",
+  "constraints": {
+    "max_time_seconds": 1200,
+    "max_memory_mb": 4096,
+    "max_cpus": 2.0
+  }
+}

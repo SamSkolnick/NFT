@@ -247,6 +247,7 @@ def create_green_agent_app(
 
     capabilities = AgentCapabilities(streaming=True)
     card = AgentCard(
+        id=f"green-agent-{hash(url) % 10000:04d}",  # Unique ID based on URL
         name=agent_name,
         description=agent_description
         or "Evaluates ML agent submissions by running their docker images against hidden test data.",
@@ -269,3 +270,28 @@ def create_green_agent_app(
         http_handler=handler,
         extended_agent_card=extended_agent_card,
     )
+
+# Create the app instance for Uvicorn/AgentBeats
+# This allows 'uvicorn GreenAgentServer:app' to work
+try:
+    # Load config from default location
+    config_path = os.environ.get("TASK_CONFIG", "task_config.json")
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            config = json.load(f)
+    else:
+        # Fallback default config if file missing
+        logger.warning(f"Config file {config_path} not found, using defaults")
+        config = {
+            "data_path": "/data",
+            "test_labels": "/data/test_labels.csv",
+            "constraints": {}
+        }
+    
+    app = create_green_agent_app(
+        task_config=config,
+        public_url=os.environ.get("PUBLIC_URL"),  # Support env var for public URL
+    ).build()
+except Exception as e:
+    logger.error(f"Failed to initialize Green Agent app: {e}")
+    raise

@@ -203,7 +203,8 @@ class ResearchEvaluator:
         research_artifacts_path: str,
         code_path: str,
         task: Dict[str, Any],
-        performance: float
+        performance: float,
+        past_context: str = ""
     ) -> Dict[str, Any]:
         """
         Main entry point for research evaluation
@@ -213,6 +214,7 @@ class ResearchEvaluator:
             code_path: Path to implementation code
             task: Task specification with domain, baseline, etc.
             performance: Achieved performance (0-1)
+            past_context: Retrieved context from similar past runs (RAG)
             
         Returns:
             Dict with process_score, impact_score, final_score
@@ -230,11 +232,14 @@ class ResearchEvaluator:
         
         # Dimension 2: Research Impact (did it help?)
         print("Evaluating research impact...")
+        # Dimension 2: Research Impact (did it help?)
+        print("Evaluating research impact...")
         impact_score = self._evaluate_research_impact(
             research_artifacts_path,
             code_path,
             task,
-            performance
+            performance,
+            past_context
         )
         
         # Combine scores
@@ -584,8 +589,9 @@ class ResearchEvaluator:
         """
         
         try:
+            model_name = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-20240620")
             response = self.client.messages.create(
-                model="claude-sonnet-4-5",
+                model=model_name,
                 max_tokens=1024,
                 temperature=0,  # Deterministic
                 messages=[{
@@ -687,8 +693,9 @@ class ResearchEvaluator:
             return {'score': 0.0, 'reason': 'Minimal research content'}
         
         try:
+            model_name = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-20240620")
             response = self.client.messages.create(
-                model="claude-sonnet-4-5",
+                model=model_name,
                 max_tokens=1024,
                 temperature=0,
                 messages=[{
@@ -729,7 +736,8 @@ class ResearchEvaluator:
         research_path: str,
         code_path: str,
         task: Dict[str, Any],
-        performance: float
+        performance: float,
+        past_context: str = ""
     ) -> Dict[str, Any]:
         """
         Evaluate research impact:
@@ -750,15 +758,18 @@ class ResearchEvaluator:
         )
         
         # 3. Cross-domain transfer
+        # 3. Cross-domain transfer
         cross_domain = self._evaluate_cross_domain_transfer(
             research_path,
-            task.get('domain', 'unknown')
+            task.get('domain', 'unknown'),
+            past_context
         )
         
         # 4. Novelty
         novelty = self._evaluate_approach_novelty(
             code_path,
-            research_path
+            research_path,
+            past_context
         )
         
         # Combine (weighted)
@@ -875,7 +886,8 @@ class ResearchEvaluator:
     def _evaluate_cross_domain_transfer(
         self,
         research_path: str,
-        task_domain: str
+        task_domain: str,
+        past_context: str = ""
     ) -> Dict[str, Any]:
         """        
         Did they find methods from other domains?        """
@@ -891,17 +903,23 @@ class ResearchEvaluator:
                 'bonus': 0.0
             }
         
-        # Use LLM to identify cross-domain citations
+        # Use LLM to identify cross-domain citations and evaluate analogy
         try:
+            model_name = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-20240620")
             response = self.client.messages.create(
-                model="claude-sonnet-4-5",
+                model=model_name,
                 max_tokens=2048,
                 temperature=0,
                 messages=[{
                     "role": "user",
                     "content": f"""Analyze research for cross-domain method transfer.
+This is a CRITICAL evaluation. We are looking for "Green Agents" that solve problems by applying knowledge from UNRELATED fields.
 
 Task domain: {task_domain}
+
+<past_context>
+{past_context}
+</past_context>
 
 <research_content>
 {research_content[:4000]}
@@ -911,39 +929,58 @@ Task domain: {task_domain}
 {json.dumps(citations[:20], indent=2)}
 </citations>
 
-Identify:
-1. Which papers are from the SAME domain as the task?
-2. Which papers are from DIFFERENT domains?
-3. Were cross-domain methods actually discussed/used?
+Evaluate three dimensions:
+1. **Domain Distance**: How far is the source domain from the task domain?
+   - "Same": e.g., Image Classif -> Object Detection
+   - "Adjacent": e.g., NLP -> Code Generation
+   - "Distant": e.g., Social Networks -> Protein Folding, or Game Theory -> Traffic Control
+
+2. **Analogy Quality**: How well does the research map concepts between domains?
+   - Does it explain *why* the transfer works? (e.g. "Amino acids are like tokens in a sentence")
+   - Is the mapping structural or just superficial?
+
+3. **Usage**: Was it actually used?
 
 Return JSON:
 {{
     "same_domain_papers": [list of titles],
     "cross_domain_papers": [
-        {{"title": "...", "domain": "...", "relevance": "how it relates to task"}}
+        {{"title": "...", "source_domain": "...", "distance": "Same/Adjacent/Distant", "relevance": "..."}}
     ],
+    "analogy_quality": {{
+        "score": 0.0-1.0,
+        "reasoning": "explanation of the mapping quality",
+        "mapping_examples": ["Token -> Amino Acid"]
+    }},
     "cross_domain_usage": {{
         "used": true/false,
-        "how": "description of how cross-domain insights were applied"
+        "how": "description"
     }},
     "score": 0.0-1.0
 }}
 
 Score guidelines:
-- 0.0: Only same-domain papers
-- 0.3: Some cross-domain papers but not used
-- 0.6: Cross-domain papers with potential relevance
-- 0.9: Clear cross-domain method transfer
-- 1.0: Novel cross-domain insight that influenced implementation"""
+- 0.0-0.3: Only same domain
+- 0.4-0.6: Adjacent domain or weak analogy
+- 0.7-0.8: Distant domain but superficial analogy
+- 0.9-1.0: Distant domain + deep structural analogy (The Holy Grail)"""
                 }]
             )
             
             result = json.loads(response.content[0].text)
             
-            # Add bonus if actually used cross-domain methods
-            bonus = 0.2 if (result.get('cross_domain_usage', {}).get('used', False)) else 0.0
+            # Calculate specialized metrics
+            analogy_score = result.get('analogy_quality', {}).get('score', 0.0)
+            
+            # Bonus calculation
+            bonus = 0.0
+            if result.get('cross_domain_usage', {}).get('used', False):
+                bonus += 0.1
+                if analogy_score > 0.7:
+                    bonus += 0.1
             
             result['bonus'] = bonus
+            result['analogy_score'] = analogy_score
             
             return result
             
@@ -951,15 +988,14 @@ Score guidelines:
             print(f"Error evaluating cross-domain: {e}")
             return {
                 'score': 0.0,
-                'cross_domain_count': 0,
-                'bonus': 0.0,
-                'reason': 'Evaluation error'
+                'analogy_score': 0.0,
             }
     
     def _evaluate_approach_novelty(
         self,
         code_path: str,
-        research_path: str
+        research_path: str,
+        past_context: str = ""
     ) -> Dict[str, Any]:
         """
         Did they try something novel/creative?
@@ -1029,7 +1065,7 @@ Score guidelines:
         impact = impact_score['overall']
         
         # Base weighted score (impact matters more)
-        weighted = 0.3 * process + 0.7 * impact
+        weighted = 0.2 * process + 0.8 * impact # Increased impact weight for cross-domain focus
         
         # Penalty: Both process AND impact are bad
         if process < 0.3 and impact < 0.3:
@@ -1040,7 +1076,14 @@ Score guidelines:
             weighted = min(1.0, weighted + 0.1)
         
         # Add cross-domain bonus
-        cross_domain_bonus = impact_score.get('breakdown', {}).get('cross_domain', {}).get('bonus', 0.0)
+        cross_domain_data = impact_score.get('breakdown', {}).get('cross_domain', {})
+        cross_domain_bonus = cross_domain_data.get('bonus', 0.0)
+        analogy_score = cross_domain_data.get('analogy_score', 0.0)
+        
+        # Significant boost for good analogies in cross-domain
+        if analogy_score > 0.6:
+             weighted = min(1.0, weighted + 0.15)
+
         weighted = min(1.0, weighted + cross_domain_bonus)
         
         return weighted

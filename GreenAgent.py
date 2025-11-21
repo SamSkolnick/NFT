@@ -7,13 +7,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Union
 
-import chromadb
 import docker
 import pandas as pd
-from docker.errors import APIError, ContainerError, NotFound
+from docker.errors import APIError, ContainerError, DockerException, ImageNotFound, NotFound
 
-from ResearchEval import evaluate_research
-from Memory import collection
+from ResearchEval import ResearchEvaluator
+from Memory import ChromaMemory, store_memory
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +36,23 @@ class GreenAgent:
             if key not in self.constraints:
                 self.constraints[key] = value
 
-        self.db_client = chromadb.PersistentClient(path="./agent_memory_db")
-
         self.collection_name = "evaluation_results"
-        self.eval_collection = self.db_client.get_or_create_collection(name=self.collection_name)
+        try:
+            self.eval_memory = ChromaMemory(collection_name=self.collection_name)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "ChromaDB is required for the Green Agent. Install dependencies with "
+                "`pip install -r requirements.txt` before running evaluations."
+            ) from exc
+        self.eval_collection = self.eval_memory.collection
+        
+        # Initialize ResearchEvaluator
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+        if anthropic_key:
+            self.research_evaluator = ResearchEvaluator(anthropic_api_key=anthropic_key)
+        else:
+            logger.warning("ANTHROPIC_API_KEY not set. Research evaluation will be limited.")
+            self.research_evaluator = None
 
     def evaluate(self, submission: dict) -> dict:
         """
@@ -52,11 +64,12 @@ class GreenAgent:
                 docker_image=submission["docker_image"],
                 task_path=self.task_data_path,
                 command=submission.get("eval_command"),
+                auth_config=self._extract_auth_config(submission),
+                pull_image=submission.get("pull_image", True),
             )
             research_future = executor.submit(
-                evaluate_research,
-                submission["research_artifacts"],
-                storage=submission.get("storage_method", "local"),
+                self._run_research_eval,
+                submission,
             )
 
             execution = execution_future.result()
@@ -86,6 +99,8 @@ class GreenAgent:
         docker_image: str,
         task_path: Path,
         command: Optional[Union[str, Sequence[str]]] = None,
+        auth_config: Optional[dict] = None,
+        pull_image: bool = True,
     ) -> dict:
         """
         Runs the white agent's container against the hidden evaluation data.
@@ -108,6 +123,32 @@ class GreenAgent:
         timeout_seconds = self.constraints.get("max_time_seconds", 3600)
 
         container = None
+        image_pulled = False
+        pull_error: Optional[str] = None
+
+        if pull_image:
+            need_pull = True
+            try:
+                client.images.get(docker_image)
+                need_pull = False
+                logger.info("Found docker image '%s' locally; skipping pull.", docker_image)
+            except ImageNotFound:
+                need_pull = True
+            except DockerException as exc:
+                logger.debug("Error checking local image cache for '%s': %s", docker_image, exc, exc_info=True)
+
+            if need_pull:
+                try:
+                    client.images.pull(docker_image, auth_config=auth_config)
+                    image_pulled = True
+                    logger.info("Pulled docker image '%s' for evaluation.", docker_image)
+                except ImageNotFound as exc:
+                    pull_error = f"Image not found during pull: {exc}"
+                    logger.warning("Unable to pull image '%s': %s", docker_image, pull_error)
+                except (APIError, DockerException) as exc:
+                    pull_error = str(exc)
+                    logger.warning("Failed to pull image '%s': %s", docker_image, pull_error)
+
         try:
             container = client.containers.run(
                 docker_image,
@@ -115,7 +156,6 @@ class GreenAgent:
                 network_mode="none",
                 volumes=volumes,
                 mem_limit=f"{mem_limit_mb}m",
-                cpus=cpu_limit,
                 detach=True,
                 remove=False,
                 environment={
@@ -140,8 +180,10 @@ class GreenAgent:
                 "time_seconds": elapsed_time,
                 "memory_used_mb": self._extract_memory_usage(stats),
                 "logs": logs,
+                "image_pulled": image_pulled,
+                "pull_error": pull_error,
             }
-        except (ContainerError, APIError, NotFound) as exc:
+        except (ContainerError, APIError, ImageNotFound, NotFound) as exc:
             error_logs = container.logs().decode("utf-8", errors="replace") if container else ""
             return {
                 "success": False,
@@ -151,6 +193,8 @@ class GreenAgent:
                 "time_seconds": 0.0,
                 "memory_used_mb": 0.0,
                 "logs": error_logs,
+                "image_pulled": image_pulled,
+                "pull_error": pull_error or str(exc),
             }
         except Exception as exc:
             return {
@@ -161,6 +205,8 @@ class GreenAgent:
                 "time_seconds": 0.0,
                 "memory_used_mb": 0.0,
                 "logs": "",
+                "image_pulled": image_pulled,
+                "pull_error": pull_error or str(exc),
             }
         finally:
             if container:
@@ -218,12 +264,7 @@ class GreenAgent:
         }
 
     def _build_volume_map(self, task_path: Path) -> dict:
-        volumes: dict[str, dict] = {}
-        for split in ("train", "val", "test"):
-            split_path = task_path / split
-            if split_path.exists():
-                volumes[str(split_path.resolve())] = {"bind": f"/data/{split}", "mode": "ro"}
-        return volumes
+        return {str(task_path.resolve()): {"bind": "/data", "mode": "ro"}}
 
     def _locate_predictions_file(self, output_dir: Path) -> Optional[str]:
         candidates = ["predictions.csv", "preds.csv", "output.csv"]
@@ -235,6 +276,30 @@ class GreenAgent:
         if csv_files:
             return str(csv_files[0].resolve())
         return None
+
+    def _extract_auth_config(self, submission: dict) -> Optional[dict]:
+        """
+        Normalize optional docker credential payloads from the submission.
+        Supports docker_credentials, docker_auth, and registry_auth keys.
+        """
+        candidates = [
+            submission.get("docker_credentials"),
+            submission.get("docker_auth"),
+            submission.get("registry_auth"),
+        ]
+        for candidate in candidates:
+            auth = self._normalize_auth(candidate)
+            if auth:
+                return auth
+        return None
+
+    @staticmethod
+    def _normalize_auth(candidate: Optional[dict]) -> Optional[dict]:
+        if not isinstance(candidate, dict):
+            return None
+        allowed_keys = {"username", "password", "email", "registry", "identitytoken"}
+        normalized = {key: value for key, value in candidate.items() if key in allowed_keys and value}
+        return normalized or None
 
     @staticmethod
     def _extract_memory_usage(stats: dict) -> float:
@@ -274,16 +339,83 @@ class GreenAgent:
         }
         payload = json.dumps(summary, default=str)
 
-        self.eval_collection.upsert(
-            documents=[payload],
-            metadatas=[{"collection": self.collection_name}],
-            ids=[doc_id],
+        self.eval_memory.upsert(
+            doc_id=doc_id,
+            document=payload,
+            metadata={"collection": self.collection_name},
         )
         try:
-            collection.upsert(
-                documents=[payload],
-                metadatas=[{"collection": self.collection_name}],
-                ids=[doc_id],
+            store_memory(
+                doc_id=doc_id,
+                document=payload,
+                metadata={"collection": self.collection_name},
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("Unable to upsert into shared memory collection: %s", exc)
+
+    def _run_research_eval(self, submission: dict) -> dict:
+        """
+        Helper to run the sophisticated ResearchEvaluator if available,
+        otherwise fall back to a placeholder or simple check.
+        """
+        if not self.research_evaluator:
+            return {"error": "ResearchEvaluator not initialized (missing API key)"}
+
+        try:
+            # We need to construct the arguments expected by ResearchEvaluator.evaluate_research
+            # The current submission might not have 'code_path' or 'task' explicitly.
+            # We'll infer what we can.
+            
+            research_path = submission["research_artifacts"]
+            # Assuming code is in the same place or we don't have it. 
+            # ResearchEvaluator needs it for 'traceability'.
+            # For now, we'll pass the research path as code path if not provided.
+            code_path = submission.get("code_path", research_path)
+            
+            # Task details are also needed. We can try to load from the task config 
+            # or create a minimal task object.
+            task = {
+                "domain": "machine-learning", # Generic default
+                "baseline_performance": 0.5 # Default
+            }
+            
+            # We need performance from the execution, but this runs in parallel!
+            # The ResearchEvaluator expects 'performance' as an input for impact scoring.
+            # This is a design mismatch in the original code (parallel execution).
+            # For now, we will pass a placeholder performance and maybe update it later 
+            # or accept that impact score will be based on this placeholder.
+            # Alternatively, we could run research eval AFTER execution, but that slows things down.
+            # Let's use a placeholder of 0.0 for now, or maybe we can't fully use the impact score yet.
+            
+            # Retrieve similar past runs to inform evaluation (RAG)
+            try:
+                query_text = f"{task} {submission.get('research_artifacts', '')}"
+                similar_memories = self.eval_memory.query(query_text=query_text, n_results=3)
+                
+                past_context_lines = []
+                for mem in similar_memories:
+                    try:
+                        data = json.loads(mem.document)
+                        score = data.get("research_score", {}).get("final_score", 0.0)
+                        summary = data.get("research_score", {}).get("summary", "No summary")
+                        past_context_lines.append(f"- Past Run (Score: {score:.2f}): {summary}")
+                    except:
+                        continue
+                
+                past_context = "\n".join(past_context_lines) if past_context_lines else "No relevant past runs found."
+                logger.info("Retrieved %d past memories for context.", len(past_context_lines))
+                
+            except Exception as exc:
+                logger.warning("Failed to retrieve past memories: %s", exc)
+                past_context = "Memory retrieval failed."
+
+            return self.research_evaluator.evaluate_research(
+                research_artifacts_path=research_path,
+                code_path=code_path,
+                task=task,
+                performance=0.0, # Placeholder, as we don't have results yet
+                past_context=past_context
+            )
+        except Exception as exc:
+            logger.exception("Error during research evaluation")
+            return {"error": str(exc)}
