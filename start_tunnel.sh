@@ -11,8 +11,14 @@ set -e
 echo "🚀 Starting AgentBeats Controller with Cloudflare Tunnel"
 echo "======================================================"
 
-# 0. Cleanup previous runs
+# 0. Cleanup previous runs (Robustly)
+echo "🧹 Cleaning up previous processes..."
 pkill -f "agentbeats run_ctrl" || true
+pkill -f "GreenAgentController.py" || true
+pkill -f "uvicorn" || true
+# Kill anything on port 8010 just in case
+lsof -ti:8010 | xargs kill -9 2>/dev/null || true
+sleep 1
 
 # 1. Start Cloudflare Tunnel for Controller (Port 8010)
 echo "1️⃣  Starting Cloudflare tunnel (Port 8010)..."
@@ -69,9 +75,8 @@ echo ""
 echo "   (The agent card is at: $PUBLIC_URL/.well-known/agent-card.json)"
 echo ""
 
-# Run Controller (this will start the agent via run.sh)
-# Run Patched Controller (this will start the agent via run.sh)
-/opt/homebrew/opt/python@3.13/bin/python3.13 GreenAgentController.py
+# Run Standard AgentBeats Controller (this will start the agent via run.sh)
+/opt/homebrew/bin/agentbeats run_ctrl
 
 # Cleanup (runs when agentbeats exits)
 kill $CF_PID 2>/dev/null
