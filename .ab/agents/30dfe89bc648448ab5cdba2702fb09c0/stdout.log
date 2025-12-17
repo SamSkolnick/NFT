@@ -1,0 +1,4 @@
+INFO:     127.0.0.1:64332 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64336 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64339 - "POST / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64348 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
