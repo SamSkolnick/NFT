@@ -41,6 +41,6 @@
     }
   ],
   "supportsAuthenticatedExtendedCard": null,
-  "url": "https://select-locale-just-skating.trycloudflare.com",
+  "url": "http://localhost:8000",
   "version": "0.1.0"
 }

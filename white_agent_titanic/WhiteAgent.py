@@ -22,6 +22,8 @@ from sklearn.metrics import (
     roc_auc_score
 )
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +72,9 @@ class WhiteAgent:
         if constraints_result["passed"] and execution.get("predictions"):
             try:
                 metrics = self.calculate_metrics(execution["predictions"])
+                self.generate_plots(execution["predictions"], execution["output_dir"])
             except Exception as e:
-                logger.error(f"Metric calculation failed: {e}")
+                logger.error(f"Metric calculation or plotting failed: {e}")
                 constraints_result["passed"] = False
                 constraints_result["violations"].append(f"Metric calculation error: {str(e)}")
         
@@ -283,13 +286,64 @@ class WhiteAgent:
         if csvs: return str(csvs[0].resolve())
         return None
 
-    def _extract_auth_config(self, submission: dict) -> Optional[dict]:
-        # Reuse logic from GreenAgent
-        candidates = [
-            submission.get("docker_credentials"),
-            submission.get("docker_auth"),
-            submission.get("registry_auth"),
-        ]
-        for c in candidates:
-            if isinstance(c, dict) and c: return c
         return None
+
+    def generate_plots(self, predictions_path: str, output_dir: str):
+        """
+        Generate relevant plots based on problem type.
+        """
+        try:
+            pdf = pd.read_csv(predictions_path)
+            gt_path = self.data_path / self.ground_truth_file
+            gdf = pd.read_csv(gt_path)
+
+            pdf[self.id_column] = pdf[self.id_column].astype(str)
+            gdf[self.id_column] = gdf[self.id_column].astype(str)
+
+            merged = pd.merge(gdf, pdf, on=self.id_column, suffixes=('_true', '_pred'))
+            
+            target_col = self.target_column
+            pred_col = self.prediction_column
+
+            y_true = merged[f"{target_col}_true"] if f"{target_col}_true" in merged.columns else merged[target_col]
+            
+            y_pred = None
+            if f"{pred_col}_pred" in merged.columns:
+                 y_pred = merged[f"{pred_col}_pred"]
+            elif pred_col in merged.columns:
+                 y_pred = merged[pred_col]
+            elif f"{target_col}_pred" in merged.columns:
+                y_pred = merged[f"{target_col}_pred"]
+                
+            if y_true is None or y_pred is None:
+                return
+
+            problem_type = self.config.get("problem_type", "classification")
+            out = Path(output_dir)
+
+            if problem_type == "classification":
+                # Confusion Matrix
+                from sklearn.metrics import confusion_matrix
+                cm = confusion_matrix(y_true, y_pred)
+                plt.figure(figsize=(8, 6))
+                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+                plt.title(f'Confusion Matrix - {self.config.get("challenge_name")}')
+                plt.ylabel('Actual Label')
+                plt.xlabel('Predicted Label')
+                plt.savefig(out / "confusion_matrix.png")
+                plt.close()
+
+            elif problem_type == "regression":
+                # Residual Plot
+                residuals = y_true - y_pred
+                plt.figure(figsize=(8, 6))
+                sns.scatterplot(x=y_pred, y=residuals)
+                plt.axhline(0, color='r', linestyle='--')
+                plt.title('Residuals vs Predicted')
+                plt.xlabel('Predicted')
+                plt.ylabel('Residuals')
+                plt.savefig(out / "residual_plot.png")
+                plt.close()
+                
+        except Exception as e:
+            logger.error(f"Plot generation failed: {e}")

@@ -33,8 +33,20 @@ class WhiteAgentExecutor(AgentExecutor):
 
     MAX_LOG_CHARACTERS = 10_000
 
-    def __init__(self, task_config: Dict[str, Any]):
-        self._task_config = task_config.copy()
+    def __init__(self, task_configs: list[Dict[str, Any]]):
+        # Map skill_id -> config
+        self._configs = {}
+        self._default_config = None
+        
+        for cfg in task_configs:
+            challenge = cfg.get("challenge_name", "Challenge")
+            # Create a simplified ID
+            slug = challenge.lower().replace(" ", "_").replace("-", "_")
+            skill_id = f"evaluate_{slug}"
+            self._configs[skill_id] = cfg
+            self._configs[slug] = cfg # Allow lookup by slug too
+            if self._default_config is None:
+                self._default_config = cfg
 
     async def execute(
         self,
@@ -57,10 +69,35 @@ class WhiteAgentExecutor(AgentExecutor):
             context,
             event_queue,
             TaskState.working,
-            f"Running submitted image for challenge: {self._task_config.get('challenge_name', 'Unknown')}",
+            # Determine config
+        target_skill = None
+        # Try to find 'challenge' or 'skill' in submission
+        req_challenge = submission.get("challenge") or submission.get("skill")
+        
+        config = None
+        if req_challenge:
+            config = self._configs.get(req_challenge) or self._configs.get(f"evaluate_{req_challenge}")
+        
+        # Fallback to default if only one exists or no specific request
+        if not config:
+            if len(self._configs) == 0:
+                 await self._send_status(context, event_queue, TaskState.failed, "No challenges configured.", final=True)
+                 return
+            if len(self._configs) <= 2: # Dictionary doubles keys (id + slug), so <= 2 entries means 1 config
+                 config = self._default_config
+        
+        if not config:
+             await self._send_status(context, event_queue, TaskState.failed, f"Challenge '{req_challenge}' not found.", final=True)
+             return
+
+        await self._send_status(
+            context,
+            event_queue,
+            TaskState.working,
+            f"Running submitted image for challenge: {config.get('challenge_name', 'Unknown')}",
         )
 
-        agent = WhiteAgent(self._task_config)
+        agent = WhiteAgent(config)
         try:
             # Run evaluation in a separate thread to avoid blocking the async event loop
             import asyncio
@@ -154,6 +191,33 @@ class WhiteAgentExecutor(AgentExecutor):
             ),
         )
 
+        # Publish plots if available
+        output_dir = results.get("execution", {}).get("output_dir")
+        if output_dir and os.path.exists(output_dir):
+            import glob
+            import base64
+            for img_path in glob.glob(os.path.join(output_dir, "*.png")):
+                fname = os.path.basename(img_path)
+                try:
+                    with open(img_path, "rb") as f:
+                        b64_data = base64.b64encode(f.read()).decode("utf-8")
+                    
+                    await self._enqueue_artifact(
+                        event_queue,
+                        TaskArtifactUpdateEvent(
+                            context_id=self._context_id(context),
+                            task_id=self._task_id(context),
+                            artifact=new_data_artifact(
+                                name=fname,
+                                data={"base64": b64_data, "mime_type": "image/png"},
+                                description=f"Visualization: {fname}",
+                            ),
+                            last_chunk=True,
+                        ),
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to publish image artifact {fname}: {e}")
+
         logs = results.get("execution", {}).get("logs", "")
         if logs:
             display_logs = logs
@@ -215,7 +279,7 @@ class WhiteAgentExecutor(AgentExecutor):
 
 
 def create_white_agent_app(
-    task_config: Dict[str, Any],
+    task_configs: list[Dict[str, Any]],
     *,
     public_url: Optional[str] = None,
     agent_name: Optional[str] = None,
@@ -224,23 +288,30 @@ def create_white_agent_app(
 ) -> A2AStarletteApplication:
     """Build an A2A application exposing the Generic White Agent."""
     
-    challenge_name = task_config.get("challenge_name", "Kaggle Challenge")
     url = public_url or os.environ.get("WHITE_AGENT_PUBLIC_URL", "http://localhost:8000")
+    skills = []
     
-    skill_example = json.dumps(
-        {
-            "docker_image": "my_submission:latest",
-        },
-        indent=2,
-    )
+    for cfg in task_configs:
+        challenge_name = cfg.get("challenge_name", "Kaggle Challenge")
+        slug = challenge_name.lower().replace(" ", "_").replace("-", "_")
+        skill_id = f"evaluate_{slug}"
+        
+        skill_example = json.dumps(
+            {
+                "docker_image": "my_submission:latest",
+                "challenge": slug 
+            },
+            indent=2,
+        )
 
-    skill = AgentSkill(
-        id="evaluate_submission",
-        name=f"Evaluate {challenge_name} Submission",
-        description=f"Run a docker image against the {challenge_name} evaluation set.",
-        tags=["evaluation", "benchmark", "docker", challenge_name.lower().replace(" ", "-")],
-        examples=[skill_example],
-    )
+        skill = AgentSkill(
+            id=skill_id,
+            name=f"Evaluate {challenge_name} Submission",
+            description=f"Run a docker image against the {challenge_name} evaluation set.",
+            tags=["evaluation", "benchmark", "docker", slug],
+            examples=[skill_example],
+        )
+        skills.append(skill)
 
     capabilities = AgentCapabilities(streaming=True)
     card = AgentCard(
@@ -253,10 +324,10 @@ def create_white_agent_app(
         default_input_modes=["text"],
         default_output_modes=["text"],
         capabilities=capabilities,
-        skills=[skill],
+        skills=skills,
     )
 
-    executor = WhiteAgentExecutor(task_config)
+    executor = WhiteAgentExecutor(task_configs)
     handler = DefaultRequestHandler(
         agent_executor=executor,
         task_store=InMemoryTaskStore(),
@@ -271,16 +342,31 @@ def create_white_agent_app(
 
 # App entrypoint
 try:
-    config_path = os.environ.get("TASK_CONFIG", "task_config.json")
-    if os.path.exists(config_path):
-        with open(config_path, "r") as f:
-            config = json.load(f)
-    else:
-        logger.warning(f"Config file {config_path} not found, using empty default.")
-        config = {}
+    configs_dir = os.path.join(os.path.dirname(__file__), "configs")
+    loaded_configs = []
     
+    # scan for json configs
+    if os.path.exists(configs_dir):
+        for fname in os.listdir(configs_dir):
+            if fname.endswith(".json"):
+                try:
+                    with open(os.path.join(configs_dir, fname), "r") as f:
+                        cfg = json.load(f)
+                        loaded_configs.append(cfg)
+                except Exception as e:
+                    logger.error(f"Failed to load config {fname}: {e}")
+    
+    # Fallback/Backward compatibility or if directory empty
+    if not loaded_configs:
+        config_path = os.environ.get("TASK_CONFIG", "task_config.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                loaded_configs.append(json.load(f))
+        else:
+            logger.warning("No configs found. Agent will have no skills.")
+
     app = create_white_agent_app(
-        task_config=config,
+        task_configs=loaded_configs,
         public_url=os.environ.get("PUBLIC_URL"),
     ).build()
 except Exception as e:

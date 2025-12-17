@@ -16,7 +16,14 @@ import uvicorn
 from a2a.client import A2ACardResolver
 from a2a.types import AgentCard
 
-from agentbeats.settings import ControllerSettings
+from pydantic_settings import BaseSettings
+
+class ControllerSettings(BaseSettings):
+    host: str = "0.0.0.0"
+    port: int = 8000
+    https_enabled: bool = False
+    cloudrun_host: str | None = None
+    agent_maintainer_sleep_n_seconds: float = 1.0
 
 
 r"""
