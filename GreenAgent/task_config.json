@@ -1,6 +1,6 @@
 {
-    "data_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/data",
-    "test_labels": "/Users/samuelskolnick/MLEngineer/SolverAgent/data/dummy_test_labels.csv",
+    "data_path": "../SolverAgent/data",
+    "test_labels": "../SolverAgent/data/dummy_test_labels.csv",
     "constraints": {
         "max_time_seconds": 1200,
         "max_memory_mb": 4096,

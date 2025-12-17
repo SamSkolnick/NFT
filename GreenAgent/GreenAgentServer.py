@@ -105,6 +105,7 @@ class GreenAgentExecutor(AgentExecutor):
         )
 
     def _extract_submission(self, context: RequestContext) -> Dict[str, Any]:
+        import re
         metadata = context.metadata or {}
         payload: Any = metadata.get("submission")
         if isinstance(payload, dict):
@@ -115,6 +116,21 @@ class GreenAgentExecutor(AgentExecutor):
                 raise ValueError(
                     "Submission payload required. Provide JSON with docker_image and research_artifacts."
                 )
+            
+            # Check if AgentBeats format (XML-like with agent URL)
+            if "<white_agent_url>" in text:
+                match = re.search(r'<white_agent_url>\s*(https?://[^\s<]+)', text)
+                if match:
+                    agent_url = match.group(1).strip()
+                    logger.info(f"Extracted agent URL from AgentBeats format: {agent_url}")
+                    return {
+                        "agent_url": agent_url,
+                        "research_artifacts": "/Users/nealprakash/194proj/NFT/SolverAgent"
+                    }
+                else:
+                    raise ValueError("Could not extract agent URL from AgentBeats format")
+            
+            # Try JSON parsing
             try:
                 submission = json.loads(text)
             except json.JSONDecodeError as exc:
@@ -122,6 +138,14 @@ class GreenAgentExecutor(AgentExecutor):
             if not isinstance(submission, dict):
                 raise ValueError("Submission payload must be a JSON object.")
 
+        # Validate based on submission type
+        if "agent_url" in submission:
+            # Remote agent submission - only needs agent_url
+            if not submission.get("research_artifacts"):
+                submission["research_artifacts"] = "/Users/nealprakash/194proj/NFT/SolverAgent"
+            return submission
+        
+        # Docker submission - needs docker_image and research_artifacts
         required = {"docker_image", "research_artifacts"}
         missing = sorted(required - submission.keys())
         if missing:
@@ -129,6 +153,7 @@ class GreenAgentExecutor(AgentExecutor):
 
         submission.setdefault("storage_method", "local")
         return submission
+
 
     async def _publish_results(
         self,
