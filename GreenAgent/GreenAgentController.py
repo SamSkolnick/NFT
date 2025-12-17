@@ -90,7 +90,16 @@ def list_agents():
         with open(os.path.join(agent_folder, "state"), "r") as f:
             state = f.read().strip()
         protocol = "https" if settings.https_enabled else "http"
-        if settings.cloudrun_host is not None:
+        
+        # Check for explicitly provided public URL (e.g. from Tunnel)
+        public_url_base = os.environ.get("AGENT_URL")
+        
+        if public_url_base:
+             # If AGENT_URL is set (e.g. https://foo.trycloudflare.com), use it.
+             # Ensure no trailing slash
+             public_url_base = public_url_base.rstrip("/")
+             url = f"{public_url_base}/to_agent/{agent_id}"
+        elif settings.cloudrun_host is not None:
             host = settings.cloudrun_host
             url = f"{protocol}://{host}/to_agent/{agent_id}"
         else:
@@ -218,7 +227,8 @@ async def get_agent_card(agent_port: int):
 
 
 def maintain_agent_process(agent_id: str):
-    agent_folder = os.path.join(".ab/agents", agent_id)
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    agent_folder = os.path.join(root_dir, ".ab", "agents", agent_id)
     agent_p = None
     agent_port = None
     skip_sleep = False
@@ -238,8 +248,10 @@ def maintain_agent_process(agent_id: str):
                 state = "pending"
 
         if state == "pending":
+            os.makedirs(agent_folder, exist_ok=True)
             agent_port = find_unoccupied_port()
-            with open(os.path.join(agent_folder, "port"), "w") as f:
+            port_file = os.path.join(agent_folder, "port")
+            with open(port_file, "w") as f:
                 f.write(str(agent_port))
             env = os.environ.copy()
             env["AGENT_PORT"] = str(agent_port)
@@ -312,15 +324,19 @@ def main():
     if not os.path.exists("run.sh"):
         raise FileNotFoundError("run.sh not found")
     # step 2: maintain the agent stub files in the folder `.ab/agents`
-    os.makedirs(".ab", exist_ok=True)
-    if os.path.exists(".ab/agents"):
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    ab_dir = os.path.join(root_dir, ".ab")
+    agents_dir = os.path.join(ab_dir, "agents")
+    
+    os.makedirs(ab_dir, exist_ok=True)
+    if os.path.exists(agents_dir):
         print("Found existing .ab/agents file from previous runs, cleaning up...")
         # remove the content in the folder
-        shutil.rmtree(".ab/agents")
-    os.makedirs(".ab/agents", exist_ok=True)
+        shutil.rmtree(agents_dir)
+    os.makedirs(agents_dir, exist_ok=True)
     # for now, only create one agent
     agent_id = uuid.uuid4().hex
-    agent_folder = os.path.join(".ab/agents", agent_id)
+    agent_folder = os.path.join(agents_dir, agent_id)
     os.makedirs(agent_folder, exist_ok=True)
     with open(os.path.join(agent_folder, "state"), "w") as f:
         f.write("pending")
@@ -331,4 +347,7 @@ def main():
     uvicorn.run(app, host=settings.host, port=settings.port)
 
 if __name__ == "__main__":
+    print("DEBUG: Registered Routes:")
+    for route in app.routes:
+        print(f" - {route.path}")
     main()

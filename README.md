@@ -39,21 +39,23 @@ This workflow allows you to start agents independently and hook them up explicit
 
 **Step 1: Start Green Agent**
 ```bash
-python manage_agents.py start-green
-# Starts on http://localhost:8000
+python manage_agents.py start-green --tunnel
+# Starts on localhost, but exposes a PUBLIC URL via Cloudflare.
+# Look for: [Tunnel] Verified URL: https://....trycloudflare.com
 ```
 
 **Step 2: Start Solver Agent**
 In a new terminal:
 ```bash
-python manage_agents.py start-solver
-# Starts on http://localhost:8005
+python manage_agents.py start-solver --tunnel
+# Starts on localhost, but exposes a PUBLIC URL via Cloudflare.
+# Look for: [Tunnel] Verified URL: https://....trycloudflare.com
 ```
 
 **Step 3: Trigger Evaluation**
-Once both agents are running, trigger the task:
+Use the public URLs printed above:
 ```bash
-python manage_agents.py submit-task --green-url http://localhost:8000 --solver-url http://localhost:8005
+python manage_agents.py submit-task --green-url https://<green-url>.trycloudflare.com --solver-url https://<solver-url>.trycloudflare.com
 ```
 
 ### 3. Utility Commands

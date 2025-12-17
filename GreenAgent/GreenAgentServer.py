@@ -27,6 +27,12 @@ from a2a.utils import (
 
 from GreenAgent import GreenAgent
 
+import uvicorn
+from starlette.requests import Request
+from starlette.responses import Response
+from TauBenchAssessor import TauBenchAssessor
+from tau_bench.types import Action
+
 logger = logging.getLogger(__name__)
 
 
@@ -291,8 +297,77 @@ try:
     
     app = create_green_agent_app(
         task_config=config,
-        public_url=os.environ.get("PUBLIC_URL"),  # Support env var for public URL
+        public_url=os.environ.get("AGENT_URL") or os.environ.get("PUBLIC_URL"),
     ).build()
 except Exception as e:
     logger.error(f"Failed to initialize Green Agent app: {e}")
     raise
+
+
+# --- TAU BENCH INTEGRATION ---
+
+tau_assessor = TauBenchAssessor()
+
+async def init_env(request: Request):
+    try:
+        data = await request.json()
+    except:
+        data = {}
+    session_id = tau_assessor.create_session(
+        env_name=data.get("env_name", "retail"),
+        task_split=data.get("task_split", "test")
+    )
+    return Response(content=json.dumps({"session_id": session_id}), media_type="application/json")
+
+async def reset_env(request: Request):
+    session_id = request.path_params["session_id"]
+    try:
+        data = await request.json()
+    except:
+        data = {}
+    try:
+        resp = tau_assessor.reset(session_id, data.get("task_index"))
+        return Response(content=resp.model_dump_json(), media_type="application/json")
+    except ValueError as e:
+        return Response(content=str(e), status_code=404)
+
+async def step_env(request: Request):
+    session_id = request.path_params["session_id"]
+    try:
+        action_data = await request.json()
+        action = Action(**action_data)
+        resp = tau_assessor.step(session_id, action)
+        return Response(content=resp.model_dump_json(), media_type="application/json")
+    except ValueError as e:
+        return Response(content=str(e), status_code=404)
+    except Exception as e:
+        return Response(content=f"Error stepping env: {e}", status_code=500)
+
+async def get_tools(request: Request):
+    session_id = request.path_params["session_id"]
+    try:
+        data = tau_assessor.get_tools_info(session_id)
+        return Response(content=json.dumps(data), media_type="application/json")
+    except ValueError as e:
+         return Response(content=str(e), status_code=404)
+
+async def get_wiki(request: Request):
+    session_id = request.path_params["session_id"]
+    try:
+        data = {"wiki": tau_assessor.get_wiki(session_id)}
+        return Response(content=json.dumps(data), media_type="application/json")
+    except ValueError as e:
+         return Response(content=str(e), status_code=404)
+
+# Register Routes Explicitly
+app.add_route("/env/init", init_env, methods=["POST"])
+app.add_route("/env/{session_id}/reset", reset_env, methods=["POST"])
+app.add_route("/env/{session_id}/step", step_env, methods=["POST"])
+app.add_route("/env/{session_id}/tools", get_tools, methods=["GET"])
+app.add_route("/env/{session_id}/wiki", get_wiki, methods=["GET"])
+
+if __name__ == "__main__":
+    print(f"App Type: {type(app)}")
+    for route in app.routes:
+        print(f"Route: {route.path} {getattr(route, 'methods', '')}")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

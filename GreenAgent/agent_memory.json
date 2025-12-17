@@ -1,0 +1,51 @@
+{
+  "run_bbe271ff2657403782baeb1ee1ca298d": {
+    "id": "run_bbe271ff2657403782baeb1ee1ca298d",
+    "document": "{\"performance\": {\"accuracy\": 0.7777777777777778, \"f1_score\": 0.7801394511920828}, \"constraints\": {\"passed\": true, \"violations\": []}, \"research_score\": {\"error\": \"ResearchEvaluator not initialized (missing API key)\"}, \"execution\": {\"success\": true, \"predictions\": \"/tmp/outputs_e407be2a9ee149178aa5e6ec95461181/predictions.csv\", \"output_dir\": \"/tmp/outputs_e407be2a9ee149178aa5e6ec95461181\", \"time_seconds\": 0.08624100685119629, \"memory_used_mb\": 0.0, \"logs\": \"\"}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_39d5211d286246f780a17a506ad2290c": {
+    "id": "run_39d5211d286246f780a17a506ad2290c",
+    "document": "{\"performance\": {\"accuracy\": 0.7777777777777778, \"f1_score\": 0.7801394511920828}, \"constraints\": {\"passed\": true, \"violations\": []}, \"research_score\": {\"error\": \"ResearchEvaluator not initialized (missing API key)\"}, \"execution\": {\"success\": true, \"predictions\": \"/tmp/outputs_13beedd443aa43428f52103f0e52c1b2/predictions.csv\", \"output_dir\": \"/tmp/outputs_13beedd443aa43428f52103f0e52c1b2\", \"time_seconds\": 0.2426130771636963, \"memory_used_mb\": 0.0, \"logs\": \"\"}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_866055c8dabd4c3caf6de44100955ba1": {
+    "id": "run_866055c8dabd4c3caf6de44100955ba1",
+    "document": "{\"performance\": {\"accuracy\": 0.0, \"f1_score\": 0.0}, \"constraints\": {\"passed\": false, \"violations\": [\"Execution failed\"]}, \"research_score\": {\"error\": \"ResearchEvaluator not initialized (missing API key)\"}, \"execution\": {\"success\": false, \"error\": \"HTTP Error 400: Invalid SSE response or protocol error: Expected response header Content-Type to contain 'text/event-stream', got ''\", \"time_seconds\": 0.07229328155517578}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_ba9c1796e30f4da2b1e1fc2282712d9f": {
+    "id": "run_ba9c1796e30f4da2b1e1fc2282712d9f",
+    "document": "{\"performance\": {\"accuracy\": 0.7777777777777778, \"f1_score\": 0.7801394511920828}, \"constraints\": {\"passed\": true, \"violations\": []}, \"research_score\": {\"error\": \"ResearchEvaluator not initialized (missing API key)\"}, \"execution\": {\"success\": true, \"predictions\": \"/tmp/outputs_4f3ce2bcb0824804819821e3de13a8aa/predictions.csv\", \"output_dir\": \"/tmp/outputs_4f3ce2bcb0824804819821e3de13a8aa\", \"time_seconds\": 0.12005209922790527, \"memory_used_mb\": 0.0, \"logs\": \"\"}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_370ca3aa83314e6aa3f235ecd53e65cc": {
+    "id": "run_370ca3aa83314e6aa3f235ecd53e65cc",
+    "document": "{\"performance\": {\"accuracy\": 0.0, \"f1_score\": 0.0}, \"constraints\": {\"passed\": false, \"violations\": [\"Execution failed\"]}, \"research_score\": {\"error\": \"ResearchEvaluator not initialized (missing API key)\"}, \"execution\": {\"success\": false, \"error\": \"All connection attempts failed\", \"time_seconds\": 0.06848311424255371}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_b28428326bb54eadaac95b7029a92638": {
+    "id": "run_b28428326bb54eadaac95b7029a92638",
+    "document": "{\"performance\": {\"accuracy\": 0.7777777777777778, \"f1_score\": 0.7801394511920828}, \"constraints\": {\"passed\": true, \"violations\": []}, \"research_score\": {\"error\": \"ResearchEvaluator not initialized (missing API key)\"}, \"execution\": {\"success\": true, \"predictions\": \"/tmp/outputs_11fbf20df42c42fcabc4908e5c681f95/predictions.csv\", \"output_dir\": \"/tmp/outputs_11fbf20df42c42fcabc4908e5c681f95\", \"time_seconds\": 0.05495405197143555, \"memory_used_mb\": 0.0, \"logs\": \"\"}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_918b2cab43334e47a8fa1be58159f65e": {
+    "id": "run_918b2cab43334e47a8fa1be58159f65e",
+    "document": "{\"performance\": {\"accuracy\": 0.7777777777777778, \"f1_score\": 0.7801394511920828}, \"constraints\": {\"passed\": true, \"violations\": []}, \"research_score\": {\"error\": \"ResearchEvaluator not initialized (missing API key)\"}, \"execution\": {\"success\": true, \"predictions\": \"/tmp/outputs_34b5e5f0c85a4b26a958f710da0b9ce2/predictions.csv\", \"output_dir\": \"/tmp/outputs_34b5e5f0c85a4b26a958f710da0b9ce2\", \"time_seconds\": 0.06459879875183105, \"memory_used_mb\": 0.0, \"logs\": \"\"}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  }
+}

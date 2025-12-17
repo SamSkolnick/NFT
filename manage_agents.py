@@ -49,17 +49,82 @@ def wait_for_agent(port, timeout=30):
         time.sleep(1)
     return False
 
-def start_green():
-    return run_process(["python", "GreenAgentController.py"], "GreenAgent", "Green Agent", GREEN_AGENT_PORT)
+def start_tunnel(port):
+    print(f"[Tunnel] Starting Cloudflare tunnel for port {port}...")
+    # cloudflared logs URL to stderr
+    proc = subprocess.Popen(
+        ["cloudflared", "tunnel", "--url", f"http://localhost:{port}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        preexec_fn=os.setsid
+    )
+    
+    public_url = None
+    # Read stderr line by line to find URL
+    # We need to do this non-blocking or with a thread usually, but here we just wait a bit
+    # Actually, we need to read it continuously until we find the URL
+    start = time.time()
+    while time.time() - start < 20: 
+        line = proc.stderr.readline()
+        if not line: break
+        if "trycloudflare.com" in line:
+            # Extract URL
+            import re
+            match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
+            if match:
+                public_url = match.group(0)
+                print(f"[Tunnel] Verified URL: {public_url}")
+                break
+    
+    if not public_url:
+        print("[Tunnel] Failed to find public URL.")
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        return None, None
+        
+    return proc, public_url
 
-def start_solver():
-    return run_process(["python", "SolverController.py"], "SolverAgent", "Solver Agent", SOLVER_AGENT_PORT)
+def start_agent_with_tunnel(command, cwd, name, port):
+    # 1. Start Tunnel first to get URL
+    tunnel_proc, public_url = start_tunnel(port)
+    if not public_url: return None
+    
+    # 2. Start Agent with AGENT_URL set
+    print(f"[{name}] Starting with AGENT_URL={public_url}")
+    env = os.environ.copy()
+    env["PORT"] = str(port)
+    env["AGENT_URL"] = public_url
+    
+    agent_proc = subprocess.Popen(
+        command,
+        cwd=cwd,
+        stdout=sys.stdout,
+        stderr=sys.stderr, # Maybe redirect to file to keep console clean?
+        env=env,
+        preexec_fn=os.setsid
+    )
+    return agent_proc, tunnel_proc, public_url
+
+def start_green(tunnel=False):
+    if tunnel:
+        agent, tun, url = start_agent_with_tunnel(["python", "GreenAgentController.py"], "GreenAgent", "Green Agent", GREEN_AGENT_PORT)
+        return agent
+    else:
+        return run_process(["python", "GreenAgentController.py"], "GreenAgent", "Green Agent", GREEN_AGENT_PORT)
+
+def start_solver(tunnel=False):
+    if tunnel:
+        agent, tun, url = start_agent_with_tunnel(["python", "SolverController.py"], "SolverAgent", "Solver Agent", SOLVER_AGENT_PORT)
+        return agent
+    else:
+        return run_process(["python", "SolverController.py"], "SolverAgent", "Solver Agent", SOLVER_AGENT_PORT)
 
 def stop_all():
-    # Kill ports
-    print("Stopping all agents...")
+    print("Stopping all agents and tunnels...")
+    # Kill ports and cloudflared
     subprocess.run(f"lsof -t -i:{GREEN_AGENT_PORT} -i:{SOLVER_AGENT_PORT} | xargs kill -9", shell=True)
-    print("✓ Agents stopped.")
+    subprocess.run("pkill -f cloudflared", shell=True)
+    print("✓ Stopped.")
 
 async def run_a2a_demo():
     print("\n=== Running A2A Demo (Remote Solver) ===\n")
@@ -203,8 +268,12 @@ def main():
     parser = argparse.ArgumentParser(description="Manage AgentBeats Agents")
     subparsers = parser.add_subparsers(dest="command", required=True)
     
-    subparsers.add_parser("start-green", help="Start Green Agent (Port 8000)")
-    subparsers.add_parser("start-solver", help="Start Solver Agent (Port 8005)")
+    green_parser = subparsers.add_parser("start-green", help="Start Green Agent (Port 8000)")
+    green_parser.add_argument("--tunnel", action="store_true", help="Expose via Cloudflare Tunnel")
+    
+    solver_parser = subparsers.add_parser("start-solver", help="Start Solver Agent (Port 8005)")
+    solver_parser.add_argument("--tunnel", action="store_true", help="Expose via Cloudflare Tunnel")
+    
     subparsers.add_parser("stop-all", help="Stop all running agents")
     subparsers.add_parser("demo-a2a", help="Run end-to-end A2A demo")
     
@@ -212,17 +281,22 @@ def main():
     submit_parser.add_argument("--green-url", default=f"http://localhost:{GREEN_AGENT_PORT}", help="URL of Green Agent")
     submit_parser.add_argument("--solver-url", default=f"http://localhost:{SOLVER_AGENT_PORT}", help="URL of Solver Agent")
     
+    tb_parser = subparsers.add_parser("start-taubench-solver", help="Start Tau Bench Solver Agent")
+    tb_parser.add_argument("--tunnel", action="store_true", help="Expose via Cloudflare Tunnel")
+    
+    subparsers.add_parser("demo-taubench", help="Run Tau Bench E2E Demo (Local)")
+    
     args = parser.parse_args()
     
     if args.command == "start-green":
-        start_green()
+        start_green(tunnel=args.tunnel)
         try:
             while True: time.sleep(1)
         except KeyboardInterrupt:
             stop_all()
             
     elif args.command == "start-solver":
-        start_solver()
+        start_solver(tunnel=args.tunnel)
         try:
              while True: time.sleep(1)
         except KeyboardInterrupt:
@@ -236,6 +310,37 @@ def main():
         
     elif args.command == "submit-task":
         asyncio.run(submit_task(args.green_url, args.solver_url))
+
+    elif args.command == "start-taubench-solver":
+        # Launch TauBenchSolverServer with tunnel option
+        if args.tunnel:
+             # Just like start-solver but different file
+             start_agent_with_tunnel([sys.executable, "TauBenchSolverServer.py"], "SolverAgent", "Tau Bench Solver", SOLVER_AGENT_PORT)
+        else:
+             run_process([sys.executable, "TauBenchSolverServer.py"], "SolverAgent", "Tau Bench Solver", SOLVER_AGENT_PORT)
+        try:
+             while True: time.sleep(1)
+        except KeyboardInterrupt:
+             stop_all()
+
+    elif args.command == "demo-taubench":
+        # Orchestrate end-to-end Tau Bench Demo
+        stop_all()
+        green_proc = start_green()
+        # Start Tau Bench Solver locally
+        solver_proc = run_process([sys.executable, "TauBenchSolverServer.py"], "SolverAgent", "Tau Bench Solver", SOLVER_AGENT_PORT)
+        
+        time.sleep(5) # Wait for startup
+        
+        # Submit Task
+        print("\n=== Submitting Tau Bench Task ===")
+        # We need to target the Solver's A2A endpoint. 
+        # The TauBenchSolverExecutor will trigger the loop.
+        # It needs to know Green URL.
+        # HACK: The Solver will default to localhost:8000 if not specified, which works for this local demo.
+        # We pass Solver URL as "target" and Green URL as "payload" (though payload is ignored by current implementation)
+        
+        asyncio.run(submit_task("http://localhost:8005", "http://localhost:8000"))
 
 if __name__ == "__main__":
     main()

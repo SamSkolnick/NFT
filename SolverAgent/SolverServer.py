@@ -217,7 +217,7 @@ try:
     base_path = Path(__file__).parent
     app = create_solver_app(
         base_dir=base_path,
-        public_url=os.environ.get("PUBLIC_URL"),
+        public_url=os.environ.get("AGENT_URL") or os.environ.get("PUBLIC_URL"),
     ).build()
 except Exception as e:
     logger.error(f"Failed to init app: {e}")

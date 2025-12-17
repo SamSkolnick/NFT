@@ -1,0 +1,44 @@
+{
+  "additionalInterfaces": null,
+  "capabilities": {
+    "extensions": null,
+    "pushNotifications": null,
+    "stateTransitionHistory": null,
+    "streaming": true
+  },
+  "defaultInputModes": [
+    "text"
+  ],
+  "defaultOutputModes": [
+    "text"
+  ],
+  "description": "A White Agent that solves the Titanic challenge.",
+  "documentationUrl": null,
+  "iconUrl": null,
+  "name": "Titanic Solver Agent",
+  "preferredTransport": "JSONRPC",
+  "protocolVersion": "0.3.0",
+  "provider": null,
+  "security": null,
+  "securitySchemes": null,
+  "signatures": null,
+  "skills": [
+    {
+      "description": "Predicts survival on the Titanic dataset.",
+      "examples": null,
+      "id": "solve_titanic",
+      "inputModes": null,
+      "name": "Solve Titanic Survival",
+      "outputModes": null,
+      "security": null,
+      "tags": [
+        "solver",
+        "ml",
+        "titanic"
+      ]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": null,
+  "url": "http://127.0.0.1:8005/to_agent/3d0f1ab9f40e48a5864af01cf1c10cfd",
+  "version": "0.1.0"
+}
