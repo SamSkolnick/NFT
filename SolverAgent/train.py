@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.pipeline import Pipeline
 import os
-import litellm
+import google.generativeai as genai
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
@@ -30,12 +30,50 @@ DATA_DIR = Path(__file__).parent / "data"
 MODEL_PATH = Path(__file__).parent / "model" / "model.pkl"
 
 
-def generate_model_code(task_description: str, constraints: str, data_info: str, llm_model: str) -> str:
+def generate_model_enrichment(task_desc: str, llm_model: str = "models/gemini-3-flash-preview") -> str:
+    """
+    Conducts research to enrich the model creation.
+    """
+    prompt = f"""
+    You are a world-class Data Scientist and Machine Learning Researcher.
+    
+    Task Description: {task_desc}
+    
+    Your goal is to provide a brief high-level research summary to guide a Machine Learning Engineer in building the best possible model for this task.
+    
+    Please provide:
+    1. Recommended Model Architectures (e.g., Logistic Regression vs Random Forest vs XGBoost vs Transformer-based).
+    2. Key Feature Engineering ideas (e.g., TF-IDF parameters, handling imbalanced data, specific scaling).
+    3. Common pitfalls to avoid for this specific domain.
+    
+    Keep it concise (max 200 words).
+    """
+    
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("Error: GEMINI_API_KEY not set for enrichment.")
+        return ""
+    
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(llm_model)
+    
+    try:
+        print(f"Conducting model enrichment research with Gemini ({llm_model})...")
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Enrichment research failed: {e}")
+        return "Focus on standard Scikit-Learn pipelines with robust preprocessing."
+
+def generate_model_code(task_description: str, constraints: str, data_info: str, enrichment_info: str, llm_model: str) -> str:
     """
     Asks the LLM to write a Python function `build_pipeline` that returns a Scikit-Learn pipeline.
     """
     prompt = f"""
     You are an expert Machine Learning Engineer.
+    
+    Background Research & Best Practices:
+    {enrichment_info}
 
     Task: {task_description}
     Constraints: {constraints}
@@ -64,19 +102,33 @@ def generate_model_code(task_description: str, constraints: str, data_info: str,
         return Pipeline([('pre', preprocessor), ('clf', MultinomialNB())])
     """
     
+    # Configure Gemini
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("Error: GEMINI_API_KEY not set.")
+        return ""
+    
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(llm_model)
+    
     try:
-        print(f"Generating model code with {llm_model}...")
-        response = litellm.completion(
-            model=llm_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0
-        )
-        code = response.choices[0].message.content.strip()
+        print(f"Generating model code with Gemini ({llm_model})...")
+        response = model.generate_content(prompt)
+        code = response.text.strip()
+        
         # Strip markdown if present
-        if code.startswith("```python"):
-            code = code.split("\n", 1)[1]
-        if code.endswith("```"):
-            code = code.rsplit("\n", 1)[0]
+        if "```" in code:
+            # Try to extract content between backticks
+            import re
+            match = re.search(r"```(?:python)?\n?(.*?)\n?```", code, re.DOTALL)
+            if match:
+                code = match.group(1).strip()
+            else:
+                # Fallback: just strip the start/end backticks if they are there
+                code = code.strip("`").strip()
+                if code.startswith("python"):
+                    code = code[6:].strip()
+                    
         return code
     except Exception as e:
         print(f"Code generation failed: {e}")
@@ -112,11 +164,10 @@ def save_and_load_code(code: str) -> Any:
 # Dynamic Data Loading - No hardcoded columns
 
 
-def load_data(data_path: Path = None, target_col: str = None, type: str = 'tsv', extract_labels: bool = True) -> tuple[pd.DataFrame, pd.Series, list]:
+def load_data(data_path: Path = None, target_col: Any = None, type: str = 'csv', extract_labels: bool = True) -> tuple[pd.DataFrame, pd.Series, list]:
     # we expect the first row to always have the column titles and the first column to be the answers
-    path = data_path or (DATA_DIR / "train.csv")
-    if not path.exists():
-        raise FileNotFoundError(f"Data not found at {path}")
+    path = data_path
+
     
     # Infer type from extension if not explicitly tsv but path ends in .tsv
     if str(path).endswith('.tsv'):
@@ -135,8 +186,11 @@ def load_data(data_path: Path = None, target_col: str = None, type: str = 'tsv',
     if extract_labels:
         # Identify target column
         # If target_col provided, use it. Else use the first column.
-        if target_col:
-            labels_name = target_col
+        if target_col is not None:
+            if isinstance(target_col, int):
+                labels_name = df.columns[target_col]
+            else:
+                labels_name = target_col
         else:
             labels_name = df.columns[0]
             
@@ -145,14 +199,28 @@ def load_data(data_path: Path = None, target_col: str = None, type: str = 'tsv',
             
     return data, column_titles, labels
 
-def train_model(task_desc: str, constraints: str, llm_model: str = "gpt-4o", data_path: Path = None, valdata_path: Path = None, target_col: str = None) -> dict:
+def train_model(task_desc: str, constraints: str, llm_model: str = "models/gemini-3-flash-preview", data_path: Path = None, valdata_path: Path = None, target_col: Any = None) -> dict:
+    data_path = Path(data_path) if data_path else None
+    valdata_path = Path(valdata_path) if valdata_path else None
+    
     X, column_titles, labels = load_data(data_path, target_col, extract_labels=True)
     
     # Allow user to override labels name if desired, or just use the name from the series
     y = labels
+    
+    # Clean data: drop rows where target or features are completely missing
+    mask = y.notna()
+    X = X[mask]
+    y = y[mask]
+    
+    if len(y) == 0:
+        raise ValueError("No valid data points after dropping NaNs.")
 
     # 1. Analyze Data for LLM
     start_time = time.time()
+    
+    # Enrichment Phase
+    enrichment_info = generate_model_enrichment(task_desc, llm_model)
     
     # Helper to safe-list columns
     numeric_cols = list(X.select_dtypes(include=['number']).columns)
@@ -168,7 +236,7 @@ def train_model(task_desc: str, constraints: str, llm_model: str = "gpt-4o", dat
     """
     
     # 2. Generate Code
-    code = generate_model_code(task_desc, constraints, data_info, llm_model)
+    code = generate_model_code(task_desc, constraints, data_info, enrichment_info, llm_model)
     
     # 3. Load & Execute
     module, code_path = save_and_load_code(code)
@@ -179,8 +247,10 @@ def train_model(task_desc: str, constraints: str, llm_model: str = "gpt-4o", dat
         
     pipeline = module.build_pipeline()
     
+    print(f"Label distribution:\n{y.value_counts()}")
+    
     X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+        X, y, test_size=0.1, random_state=42, stratify=y
     )
     
     pipeline.fit(X_train, y_train)
@@ -210,6 +280,7 @@ def train_model(task_desc: str, constraints: str, llm_model: str = "gpt-4o", dat
     
     return {
         "selected_model": "Custom Generated Pipeline",
+        "research": enrichment_info,
         "validation_report": report,
         "model_path": str(MODEL_PATH.resolve()),
         "code_path": str(code_path),
