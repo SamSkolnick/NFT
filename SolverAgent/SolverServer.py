@@ -4,7 +4,9 @@ import logging
 import os
 import uuid
 import pandas as pd
-import joblib
+import dill
+
+
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -42,7 +44,9 @@ class SolverExecutor(AgentExecutor):
         # Pre-load model if possible
         if self.model_path.exists():
             try:
-                self.model = joblib.load(self.model_path)
+                # self.model = joblib.load(self.model_path)
+                with open(self.model_path, "rb") as f:
+                    self.model = dill.load(f)
                 logger.info(f"Loaded model from {self.model_path}")
             except Exception as e:
                 logger.error(f"Failed to load model: {e}")
@@ -106,7 +110,9 @@ class SolverExecutor(AgentExecutor):
             )
             
             # 3. Load Model & Predict
-            pipeline = joblib.load(model_path)
+            # pipeline = joblib.load(model_path)
+            with open(model_path, "rb") as f:
+                pipeline = dill.load(f)
             
             # Load Test Data (Generic)
             # We reuse load_data's logic but for test set (no target)

@@ -1,0 +1,33 @@
+{
+  "selected_model": "Custom Generated Pipeline",
+  "research": "To optimize SMS spam classification, focus on balancing high precision with low-latency inference.\n\n**1. Recommended Architectures**\n*   **Baseline:** Multinomial Naive Bayes or Logistic Regression with TF-IDF for rapid iteration.\n*   **SOTA:** **DistilBERT** or **TinyBERT**. These Transformers provide superior contextual understanding of short-form text while remaining computationally efficient for real-time production environments.\n\n**2. Key Feature Engineering**\n*   **Metadata:** Extract message length, punctuation density, and counts of URLs, phone numbers, or currency symbols.\n*   **Textual:** Use character-level n-grams (3-5) to handle \"leetspeak\" and obfuscation (e.g., \"v1agra\").\n*   **Imbalance:** Use **Cost-Sensitive Learning** (class weighting) rather than SMOTE to maintain the integrity of the natural data distribution.\n\n**3. Common Pitfalls**\n*   **Data Leakage:** Ensure identical messages or unique sender IDs do not bridge the train-test split.\n*   **Over-preprocessing:** Avoid aggressive lemmatization; capitalization and \"SMS-speak\" (slang/shorthand) are often strong spam indicators.\n\n**Cross-Domain Transfer Learning**\nLeverage **Transfer Learning** from models pre-trained on massive, diverse corpora (e.g., RoBERTa). Although trained on formal text, the underlying linguistic hierarchies transfer exceptionally well; fine-tuning allows the model to adapt general semantic knowledge to the specific nuances of informal mobile messaging.",
+  "validation_report": {
+    "0": {
+      "precision": 0.9897435897435898,
+      "recall": 0.9974160206718347,
+      "f1-score": 0.9935649935649936,
+      "support": 387.0
+    },
+    "1": {
+      "precision": 0.9821428571428571,
+      "recall": 0.9322033898305084,
+      "f1-score": 0.9565217391304348,
+      "support": 59.0
+    },
+    "accuracy": 0.9887892376681614,
+    "macro avg": {
+      "precision": 0.9859432234432235,
+      "recall": 0.9648097052511715,
+      "f1-score": 0.9750433663477143,
+      "support": 446.0
+    },
+    "weighted avg": {
+      "precision": 0.9887381116641206,
+      "recall": 0.9887892376681614,
+      "f1-score": 0.9886646527317224,
+      "support": 446.0
+    }
+  },
+  "model_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/model/model.pkl",
+  "code_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/models/model_44fcd11da2d04814a33e565e90394398.py"
+}

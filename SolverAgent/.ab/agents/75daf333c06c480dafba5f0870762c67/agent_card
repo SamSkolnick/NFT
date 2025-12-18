@@ -1,0 +1,43 @@
+{
+  "additionalInterfaces": null,
+  "capabilities": {
+    "extensions": null,
+    "pushNotifications": null,
+    "stateTransitionHistory": null,
+    "streaming": true
+  },
+  "defaultInputModes": [
+    "text"
+  ],
+  "defaultOutputModes": [
+    "text"
+  ],
+  "description": "A White Agent that codes and trains ML models.",
+  "documentationUrl": null,
+  "iconUrl": null,
+  "name": "Meta Kaggle White Agent",
+  "preferredTransport": "JSONRPC",
+  "protocolVersion": "0.3.0",
+  "provider": null,
+  "security": null,
+  "securitySchemes": null,
+  "signatures": null,
+  "skills": [
+    {
+      "description": "Train model for provided dataset.",
+      "examples": null,
+      "id": "train-model",
+      "inputModes": null,
+      "name": "Train model",
+      "outputModes": null,
+      "security": null,
+      "tags": [
+        "ml",
+        "training"
+      ]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": null,
+  "url": "http://127.0.0.1:8005/to_agent/75daf333c06c480dafba5f0870762c67",
+  "version": "0.1.0"
+}

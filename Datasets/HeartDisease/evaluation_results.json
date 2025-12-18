@@ -1,0 +1,33 @@
+{
+  "selected_model": "Custom Generated Pipeline",
+  "research": "For heart disease prediction, **Gradient Boosted Decision Trees (XGBoost or CatBoost)** are the gold standard for tabular clinical data due to their ability to capture non-linear relationships and handle missing values. If processing EKG/imaging, utilize **1D-ResNets** or **Vision Transformers**.\n\n**Feature Engineering:**\n*   **Clinical Indicators:** Calculate BMI, Mean Arterial Pressure, and age-stratified risk scores (e.g., Framingham).\n*   **Preprocessing:** Use **RobustScaler** for physiological outliers and **Target Encoding** for categorical variables like medical history.\n*   **Imbalance:** Apply **Cost-Sensitive Learning** or **SMOTE-Tomek** to address the typical minority class of positive cases.\n\n**Pitfalls to Avoid:**\n*   **Data Leakage:** Ensure features like \"prescribed heart medication\" aren't included if they were administered *after* diagnosis.\n*   **Spectrum Bias:** Ensure the model isn't trained solely on acute cases, which leads to failure in early-stage asymptomatic detection.\n*   **Black-box decisions:** Use **SHAP** values; clinical utility requires interpretability.\n\n**Cross-Domain/Transfer Learning:**\nTreat this as a **Risk Stratification** task. Leverage **Transfer Learning** by pre-training **Tabular Transformers (FT-Transformer)** on massive, low-resolution health surveys (e.g., NHANES) before fine-tuning on specific clinical data. Techniques from **Credit Scoring** (e.g., Weight of Evidence) translate effectively to clinical risk modeling.",
+  "validation_report": {
+    "0": {
+      "precision": 0.7692307692307693,
+      "recall": 0.8333333333333334,
+      "f1-score": 0.8,
+      "support": 12.0
+    },
+    "1": {
+      "precision": 0.7777777777777778,
+      "recall": 0.7,
+      "f1-score": 0.7368421052631579,
+      "support": 10.0
+    },
+    "accuracy": 0.7727272727272727,
+    "macro avg": {
+      "precision": 0.7735042735042735,
+      "recall": 0.7666666666666666,
+      "f1-score": 0.7684210526315789,
+      "support": 22.0
+    },
+    "weighted avg": {
+      "precision": 0.7731157731157731,
+      "recall": 0.7727272727272727,
+      "f1-score": 0.7712918660287081,
+      "support": 22.0
+    }
+  },
+  "model_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/model/model.pkl",
+  "code_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/models/model_200740f2fb5b4d2aa4fa899bbc584640.py"
+}

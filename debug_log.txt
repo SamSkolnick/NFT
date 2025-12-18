@@ -1,0 +1,21 @@
+DEBUG: Registered Routes:
+ - /openapi.json
+ - /docs
+ - /docs/oauth2-redirect
+ - /redoc
+ - /info
+ - /status
+ - /agents
+ - /agents/{agent_id}
+ - /agents/{agent_id}/reset
+ - /to_agent/{agent_id}
+ - /to_agent/{agent_id}/{full_path:path}
+ - /.well-known/agent-card.json
+ - /
+Found existing .ab/agents file from previous runs, cleaning up...
+INFO:     Started server process [61085]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ERROR:    [Errno 48] error while attempting to bind on address ('0.0.0.0', 8000): address already in use
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.

@@ -4,4 +4,4 @@ Path: /.well-known/agent-card.json Methods: {'GET', 'HEAD'}
 Path: /.well-known/agent.json Methods: {'GET', 'HEAD'}
 Path: /train Methods: {'POST'}
 -------------------------
-INFO:     127.0.0.1:61346 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51859 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK

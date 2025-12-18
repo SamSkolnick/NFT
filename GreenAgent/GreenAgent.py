@@ -26,6 +26,7 @@ class GreenAgent:
             self.test_data_path = base_data_path / "test.csv"
 
         self.test_labels = task_config["test_labels"]
+        self.target_column = task_config.get("target_column")
 
         self.collection_name = "evaluation_results"
         try:
@@ -36,6 +37,38 @@ class GreenAgent:
                 "`pip install -r requirements.txt` before running evaluations."
             ) from exc
         self.eval_collection = self.eval_memory.collection
+
+    
+    def evaluate(self, submission: dict) -> dict:
+        """
+        Entry point called by the server.
+        Orchestrates running the remote agent and then evaluating its predictions.
+        """
+        agent_url = submission.get("agent_url")
+        if not agent_url:
+             raise ValueError("Submission must contain 'agent_url'")
+        
+        # 1. Run the remote agent
+        execution_result = self.run_remote_agent_sync(agent_url, self.train_data_path, self.test_data_path)
+        
+        # 2. Evaluate performance if successful
+        performance = {}
+        if execution_result.get("success"):
+            predictions_path = execution_result.get("predictions")
+            if predictions_path and os.path.exists(predictions_path):
+                try:
+                    performance = self.evaluate_performance(predictions_path, self.test_labels)
+                except Exception as e:
+                    logger.error(f"Performance evaluation failed: {e}")
+                    execution_result["error"] = f"Prediction evaluation failed: {e}"
+                    # We don't mark success=False necessarily if execution worked, but usually yes.
+                    # But let's keep execution success as True (agent ran) but perf calc failed.
+        
+        # 3. Return structured result for Server
+        return {
+            "execution": execution_result,
+            "performance": performance
+        }
 
     def run_remote_agent_sync(self, agent_url: str, train_data_path: Path, test_data_path: Path) -> dict:
         """Wrapper to run async remote agent logic in sync context."""
@@ -80,8 +113,12 @@ class GreenAgent:
             task_payload = {
                 "train_data_path": str(train_data_path.resolve()),
                 "test_data_path": str(test_data_path.resolve()),
+                "train_data_path": str(train_data_path.resolve()),
+                "test_data_path": str(test_data_path.resolve()),
                 "task_description": "Train a model on the provided dataset.",
             }
+            if self.target_column:
+                task_payload["target_column"] = self.target_column
             
             message = Message(
                 message_id=str(uuid.uuid4()),

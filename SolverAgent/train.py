@@ -6,12 +6,13 @@ validation report, and saves the trained pipeline to ./model/model.pkl.
 
 from pathlib import Path
 
-import joblib
+import dill
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, mean_squared_error, r2_score
+from sklearn.preprocessing import LabelEncoder
 from sklearn.pipeline import Pipeline
 import os
 import google.generativeai as genai
@@ -46,6 +47,8 @@ def generate_model_enrichment(task_desc: str, llm_model: str = "models/gemini-3-
     2. Key Feature Engineering ideas (e.g., TF-IDF parameters, handling imbalanced data, specific scaling).
     3. Common pitfalls to avoid for this specific domain.
     
+    Consider problems that have been solved and that have similar structure to this task across various domains. Explicitly state the cross domain-transfer learning aspect of the mode. 
+
     Keep it concise (max 200 words).
     """
     
@@ -65,7 +68,7 @@ def generate_model_enrichment(task_desc: str, llm_model: str = "models/gemini-3-
         print(f"Enrichment research failed: {e}")
         return "Focus on standard Scikit-Learn pipelines with robust preprocessing."
 
-def generate_model_code(task_description: str, constraints: str, data_info: str, enrichment_info: str, llm_model: str) -> str:
+def generate_model_code(task_description: str, constraints: str, data_info: str, enrichment_info: str, llm_model: str, problem_type: str = "classification") -> str:
     """
     Asks the LLM to write a Python function `build_pipeline` that returns a Scikit-Learn pipeline.
     """
@@ -79,27 +82,29 @@ def generate_model_code(task_description: str, constraints: str, data_info: str,
     Constraints: {constraints}
     Data Info (label of each column of the dataset in order): {data_info}
     
-    Write a Python function named `build_pipeline` that returns a sklearn.pipeline.Pipeline.
+    Available Libraries: scikit-learn, xgboost, lightgbm.
     
-    Requirements:
     1. The function signature MUST be: `def build_pipeline() -> Pipeline:`
     2. Input `X` will be a pandas DataFrame. You MUST select the correct columns!
     3. If text data, use ColumnTransformer to apply TfidfVectorizer to the specific text column.
     4. Return ONLY the Python code. No markdown backticks.
     5. Include ALL imports (including ColumnTransformer, TfidfVectorizer, etc.).
+    6. Ensure the model is appropriate for the problem type ({problem_type}).
+    7. ONLY use models from scikit-learn, xgboost, or lightgbm.
+    8. AVOID defining custom functions or classes if possible. If you MUST use a custom transformer, ensure it is a simple class defined within the script (not a lambda or a local function within `build_pipeline`), as it needs to be picklable by `dill`.
     
     Example Output:
     from sklearn.pipeline import Pipeline
     from sklearn.compose import ColumnTransformer
     from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.naive_bayes import MultinomialNB
+    from xgboost import XGBClassifier
     
     def build_pipeline():
         # Assuming Data Info says text column is 'text'
         preprocessor = ColumnTransformer([
             ('text', TfidfVectorizer(), 'text')
         ])
-        return Pipeline([('pre', preprocessor), ('clf', MultinomialNB())])
+        return Pipeline([('pre', preprocessor), ('clf', XGBClassifier())])
     """
     
     # Configure Gemini
@@ -235,8 +240,18 @@ def train_model(task_desc: str, constraints: str, llm_model: str = "models/gemin
     Example row: {X.iloc[0].to_dict()}
     """
     
-    # 2. Generate Code
-    code = generate_model_code(task_desc, constraints, data_info, enrichment_info, llm_model)
+    # 2. Detect Problem Type
+    # If y is numeric and has many unique values, it's regression
+    unique_ratio = len(y.unique()) / len(y)
+    if pd.api.types.is_numeric_dtype(y) and (len(y.unique()) > 20 or unique_ratio > 0.1):
+        problem_type = "regression"
+    else:
+        problem_type = "classification"
+    
+    print(f"Detected problem type: {problem_type}")
+
+    # 3. Generate Code
+    code = generate_model_code(task_desc, constraints, data_info, enrichment_info, llm_model, problem_type=problem_type)
     
     # 3. Load & Execute
     module, code_path = save_and_load_code(code)
@@ -249,18 +264,40 @@ def train_model(task_desc: str, constraints: str, llm_model: str = "models/gemin
     
     print(f"Label distribution:\n{y.value_counts()}")
     
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.1, random_state=42, stratify=y
-    )
+    if problem_type == "classification":
+        # Check if we need to encode labels
+        if not pd.api.types.is_integer_dtype(y):
+            le = LabelEncoder()
+            y = pd.Series(le.fit_transform(y), name=y.name, index=y.index)
+            print(f"Encoded labels: {le.classes_}")
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.1, random_state=42, stratify=y
+        )
+    else:
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.1, random_state=42, stratify=None
+        )
     
     pipeline.fit(X_train, y_train)
 
     y_pred = pipeline.predict(X_val)
-    report = classification_report(y_val, y_pred, digits=3, output_dict=True)
+    
+    if problem_type == "classification":
+        report = classification_report(y_val, y_pred, digits=3, output_dict=True)
+    else:
+        mse = mean_squared_error(y_val, y_pred)
+        r2 = r2_score(y_val, y_pred)
+        report = {
+            "mean_squared_error": mse,
+            "r2_score": r2,
+            "problem_type": "regression"
+        }
     
     # Save Pipeline
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(pipeline, MODEL_PATH)
+    with open(MODEL_PATH, "wb") as f:
+        dill.dump(pipeline, f)
 
     # 5. Validation Predictions (if valdata_path provided)
     val_preds_list = []

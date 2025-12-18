@@ -1,0 +1,33 @@
+{
+  "selected_model": "Custom Generated Pipeline",
+  "research": "To optimize survival prediction, prioritize **Gradient Boosted Decision Trees (GBDT)**\u2014specifically **CatBoost** (for native categorical handling) or **LightGBM**. For state-of-the-art results, implement a **Stacked Ensemble** using a Logistic Regression meta-learner over GBDT, Random Forest, and a simple MLP.\n\n**Key Feature Engineering:**\n*   **Title Extraction:** Parse `Name` for social status (e.g., Master, Noble).\n*   **Deck Mapping:** Extract the first letter from `Cabin` to infer vertical location.\n*   **Family Cohorts:** Create a `Family_Survival` proxy by grouping `Surname` and `Ticket`. If a family member died, the probability for others drops significantly.\n*   **Binning:** Use non-linear binning for `Age` and `Fare` to capture non-monotonic relationships.\n\n**Common Pitfalls:**\n*   **Data Leakage:** Information in `Ticket` or `Fare` can inadvertently reveal survival outcomes through shared group identifiers.\n*   **Overfitting:** With $N \\approx 891$, complex models overfit noise. Use **Stratified 10-Fold CV** and avoid deep trees.\n\n**Cross-Domain Transfer:**\nIncorporate methodologies from **Epidemiology (Clinical Survival Analysis)** and **Credit Risk Modeling**. Treat the \"survival\" label as a \"hazard rate\" influenced by environmental exposure (deck location), mirroring how researchers model patient outcomes in oncology or default risk in finance.",
+  "validation_report": {
+    "0": {
+      "precision": 0.8297872340425532,
+      "recall": 0.8863636363636364,
+      "f1-score": 0.8571428571428571,
+      "support": 44.0
+    },
+    "1": {
+      "precision": 0.8,
+      "recall": 0.7142857142857143,
+      "f1-score": 0.7547169811320755,
+      "support": 28.0
+    },
+    "accuracy": 0.8194444444444444,
+    "macro avg": {
+      "precision": 0.8148936170212766,
+      "recall": 0.8003246753246753,
+      "f1-score": 0.8059299191374663,
+      "support": 72.0
+    },
+    "weighted avg": {
+      "precision": 0.8182033096926714,
+      "recall": 0.8194444444444444,
+      "f1-score": 0.8173105720275532,
+      "support": 72.0
+    }
+  },
+  "model_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/model/model.pkl",
+  "code_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/models/model_d4e85424b85c4fcfabe5e212b4654ee0.py"
+}

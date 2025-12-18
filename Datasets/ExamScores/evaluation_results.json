@@ -1,0 +1,11 @@
+{
+  "selected_model": "Custom Generated Pipeline",
+  "research": "For predicting student scores, prioritize **Gradient Boosted Decision Trees (XGBoost or CatBoost)** as they excel with heterogeneous tabular data and handle missing values robustly. If the dataset includes longitudinal records (sequence of quiz scores), implement a **Temporal Fusion Transformer (TFT)** to capture long-term dependencies.\n\n**Feature Engineering:**\n*   **Learning Velocity:** Calculate the first derivative of scores over time to measure improvement rate.\n*   **Engagement Variance:** Rolling standard deviation of study hours to identify inconsistent learners.\n*   **Target Encoding:** Apply to high-cardinality categoricals like School/Teacher IDs.\n*   **Interaction Terms:** Multiply \"Prior Performance\" by \"Attendance Rate\" to capture non-linear synergies.\n\n**Common Pitfalls:**\n*   **Data Leakage:** Ensure features from the target exam itself (or post-exam metrics) are strictly excluded.\n*   **Selection Bias:** Account for \"survivorship bias\" where lower-performing students drop out before the final exam.\n*   **Overfitting:** Use nested cross-validation, as educational datasets are often small and prone to noise.\n\n**Cross-Domain Strategy:**\nFrame this as a **Predictive Maintenance** or **Customer Lifetime Value (CLV)** problem. Academically \"at-risk\" students mirror \"failing components.\" Utilizing pre-trained tabular models (like **TabPFN**) provides strong priors from diverse industrial datasets, significantly improving accuracy on small student cohorts.",
+  "validation_report": {
+    "mean_squared_error": 102.02416548363031,
+    "r2_score": 0.7100322950858866,
+    "problem_type": "regression"
+  },
+  "model_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/model/model.pkl",
+  "code_path": "/Users/samuelskolnick/MLEngineer/SolverAgent/models/model_e64845386d2d4885ab8b0f0f0ca274ad.py"
+}

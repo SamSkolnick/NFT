@@ -203,17 +203,19 @@ async def submit_task(green_url, solver_url):
     config = ClientConfig()
     factory = ClientFactory(config=config)
     
+    import requests
     try:
-        async with httpx.AsyncClient() as http:
-             resp = await http.get(f"{green_url.rstrip('/')}/.well-known/agent-card.json")
-             if resp.status_code != 200:
-                 print(f"Error: Failed to fetch card from {green_url}. Status: {resp.status_code}")
-                 return
-             card_data = resp.json()
-             # Normalize localhost IP if needed
-             if "0.0.0.0" in card_data.get("url", ""):
-                 card_data["url"] = card_data["url"].replace("0.0.0.0", "127.0.0.1")
-             agent_card = AgentCard(**card_data)
+        # async with httpx.AsyncClient() as http:
+        #      resp = await http.get(f"{green_url.rstrip('/')}/.well-known/agent-card.json")
+        resp = requests.get(f"{green_url.rstrip('/')}/.well-known/agent-card.json")
+        if resp.status_code != 200:
+             print(f"Error: Failed to fetch card from {green_url}. Status: {resp.status_code}")
+             return
+        card_data = resp.json()
+        # Normalize localhost IP if needed
+        if "0.0.0.0" in card_data.get("url", ""):
+            card_data["url"] = card_data["url"].replace("0.0.0.0", "127.0.0.1")
+        agent_card = AgentCard(**card_data)
         
         client = factory.create(agent_card)
         
@@ -259,9 +261,11 @@ async def submit_task(green_url, solver_url):
                              if data:
                                  print(json.dumps(data, indent=2))
         
-    except httpx.ConnectError:
-        print(f"Error: Could not connect to Green Agent at {green_url}. Is it running?")
+    except httpx.ConnectError as e:
+        print(f"Error: Could not connect to Green Agent at {green_url}. Exception: {e}")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error during submission: {e}")
 
 def main():
