@@ -1,0 +1,10 @@
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+
+def build_pipeline() -> Pipeline:
+    preprocessor = ColumnTransformer([
+        ('text', TfidfVectorizer(), 'text')
+    ])
+    return Pipeline([('pre', preprocessor), ('clf', MultinomialNB())])

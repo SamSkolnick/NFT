@@ -256,13 +256,17 @@ def maintain_agent_process(agent_id: str):
             env = os.environ.copy()
             env["AGENT_PORT"] = str(agent_port)
             _protocol = "https" if settings.https_enabled else "http"
-            _host = (
-                settings.host
-                if settings.cloudrun_host is None
-                else settings.cloudrun_host
-            )
-            _port_s = ":" + str(settings.port) if settings.cloudrun_host is None else ""
-            env["AGENT_URL"] = f"{_protocol}://{_host}{_port_s}/to_agent/{agent_id}"
+            public_url_base = os.environ.get("AGENT_URL")
+            if public_url_base:
+                 public_url_base = public_url_base.rstrip("/")
+                 env["AGENT_URL"] = f"{public_url_base}/to_agent/{agent_id}"
+            elif settings.cloudrun_host is not None:
+                host = settings.cloudrun_host
+                env["AGENT_URL"] = f"{_protocol}://{host}/to_agent/{agent_id}"
+            else:
+                host = settings.host
+                port = settings.port
+                env["AGENT_URL"] = f"{_protocol}://{host}:{port}/to_agent/{agent_id}"
             with (
                 open(os.path.join(agent_folder, "stdout.log"), "w") as fout,
                 open(os.path.join(agent_folder, "stderr.log"), "w") as ferr,

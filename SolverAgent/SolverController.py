@@ -143,6 +143,42 @@ def find_unoccupied_port():
             except OSError:
                 continue
 
+@app.get("/agents/{agent_id}")
+def get_agent_info(agent_id: str):
+    agent_folder = os.path.join(".ab", "agents", agent_id)
+    with open(os.path.join(agent_folder, "state"), "r") as f:
+        state = f.read().strip()
+    if os.path.exists(os.path.join(agent_folder, "stdout.log")):
+        with open(os.path.join(agent_folder, "stdout.log"), "r") as f:
+            stdout_log = f.read()
+    else:
+        stdout_log = "File not found."
+    if os.path.exists(os.path.join(agent_folder, "stderr.log")):
+        with open(os.path.join(agent_folder, "stderr.log"), "r") as f:
+            stderr_log = f.read()
+    else:
+        stderr_log = "File not found."
+    if os.path.exists(os.path.join(agent_folder, "agent_card")):
+        with open(os.path.join(agent_folder, "agent_card"), "r") as f:
+            agent_card = f.read()
+    else:
+        agent_card = "File not found."
+    return {
+        "state": state,
+        "stdout_log": stdout_log,
+        "stderr_log": stderr_log,
+        "agent_card": agent_card,
+    }
+
+
+@app.post("/agents/{agent_id}/reset")
+def reset_agent(agent_id: str):
+    agent_folder = os.path.join(".ab", "agents", agent_id)
+    with open(os.path.join(agent_folder, "state"), "w") as f:
+        f.write("reset_requested")
+    return {"message": f"Agent {agent_id} reset requested."}
+
+
 async def get_agent_card(agent_port: int):
     httpx_client = httpx.AsyncClient()
     resolver = A2ACardResolver(httpx_client=httpx_client, base_url=f"http://localhost:{agent_port}")
@@ -219,6 +255,35 @@ def maintain_agent_process(agent_id: str):
                     with open(os.path.join(agent_folder, "state"), "w") as f:
                         f.write(f"finished({poll})")
         
+        elif state == "reset_requested":
+            if agent_p:
+                print("Resetting agent:", agent_id)
+                agent_p.terminate()
+                agent_p.wait()
+            
+            print("Agent process terminated, archiving and restarting...")
+            archive_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            archive_folder = os.path.join(".ab", "agents", f"archived_{archive_time}")
+            os.makedirs(archive_folder, exist_ok=True)
+            
+            # Move current folder to archive, but since we are IN the current folder's parent,
+            # we need to be careful with paths if we use shutil.move or rename.
+            # GreenAgent uses os.rename(agent_folder, ...) which moves the folder.
+            os.rename(agent_folder, os.path.join(archive_folder, agent_id))
+            
+            # Recreate agent folder and set to pending
+            os.makedirs(agent_folder, exist_ok=True)
+            os.rename(archive_folder, os.path.join(agent_folder, f"archived_{archive_time}"))
+            
+            with open(os.path.join(agent_folder, "state"), "w") as f:
+                f.write("pending")
+            
+            # Skip sleep to handle pending state immediately
+            continue
+
+        elif state.startswith("finished"):
+            pass
+
         time.sleep(1.0)
 
 def main():

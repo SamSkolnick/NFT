@@ -1,0 +1,5 @@
+{
+    "train_data_path": "/Users/samuelskolnick/MLEngineer/data/spam/train.csv",
+    "test_data_path": "/Users/samuelskolnick/MLEngineer/data/spam/test.csv",
+    "test_labels": "/Users/samuelskolnick/MLEngineer/data/spam/test_labels.csv"
+}

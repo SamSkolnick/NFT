@@ -306,8 +306,36 @@ def main():
         stop_all()
         
     elif args.command == "demo-a2a":
+        # Default local demo
         asyncio.run(run_a2a_demo())
+
+    elif args.command == "demo-a2a-public":
+        print("\n=== Running A2A Demo (Public Cloudflare Tunnels) ===\n")
+        stop_all()
         
+        # 1. Start Agents with Tunnels
+        green_proc, green_tun, green_url = start_agent_with_tunnel(["python", "GreenAgentController.py"], "GreenAgent", "Green Agent", GREEN_AGENT_PORT)
+        solver_proc, solver_tun, solver_url = start_agent_with_tunnel(["python", "SolverController.py"], "SolverAgent", "Solver Agent", SOLVER_AGENT_PORT)
+        
+        if not green_url or not solver_url:
+            print("Failed to start tunnels.")
+            stop_all()
+            sys.exit(1)
+            
+        print(f"\n[Green Agent] Public URL: {green_url}")
+        print(f"[Solver Agent] Public URL: {solver_url}")
+        
+        # 2. Submit Task
+        print("\nWaiting for agents to stabilize...")
+        time.sleep(10)
+        
+        try:
+             asyncio.run(submit_task(green_url, solver_url))
+        except KeyboardInterrupt:
+             pass
+        finally:
+             stop_all()
+
     elif args.command == "submit-task":
         asyncio.run(submit_task(args.green_url, args.solver_url))
 

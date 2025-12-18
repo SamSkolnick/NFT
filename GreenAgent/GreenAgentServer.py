@@ -65,7 +65,7 @@ class GreenAgentExecutor(AgentExecutor):
             context,
             event_queue,
             TaskState.working,
-            "Running submitted docker image against evaluation data.",
+            "Connecting to remote Solver and running assessment.",
         )
 
         agent = GreenAgent(copy.deepcopy(self._task_config))
@@ -163,15 +163,11 @@ class GreenAgentExecutor(AgentExecutor):
     ) -> None:
         execution = results.get("execution", {})
         summary = {
-            "research": results.get("research"),
-            "constraints": results.get("constraints"),
             "performance": results.get("performance"),
             "execution": {
                 "success": execution.get("success"),
                 "predictions": execution.get("predictions"),
-                "output_dir": execution.get("output_dir"),
                 "time_seconds": execution.get("time_seconds"),
-                "memory_used_mb": execution.get("memory_used_mb"),
             },
         }
 
@@ -270,19 +266,25 @@ def create_green_agent_app(
     )
 
     skill = AgentSkill(
-        id="evaluate_submission",
-        name="Evaluate ML submission",
-        description="Run a submitted docker image on hidden evaluation data and return performance metrics.",
-        tags=["evaluation", "ml-benchmark", "docker"],
-        examples=[skill_example],
+        id="evaluate_solver",
+        name="Evaluate Solver Agent",
+        description="Connects to a remote Solver Agent, requests predictions for hidden data, and returns performance metrics.",
+        tags=["evaluation", "benchmark", "nlp"],
+        input_schema={
+            "type": "object",
+            "properties": {
+                "agent_url": {"type": "string"},
+                "research_artifacts": {"type": "string"}
+            }
+        }
     )
 
     capabilities = AgentCapabilities(streaming=True)
     card = AgentCard(
-        id=f"green-agent-{hash(url) % 10000:04d}",  # Unique ID based on URL
+        id=f"green-evaluator-{hash(url) % 10000:04d}",
         name=agent_name,
         description=agent_description
-        or "Evaluates ML agent submissions by running their docker images against hidden test data.",
+        or "Evaluates Solver Agents by connecting to them and scoring their model predictions.",
         url=url,
         version="0.1.0",
         default_input_modes=["text"],
