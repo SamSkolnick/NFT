@@ -1,7 +1,0 @@
---- Registered Routes ---
-Path: / Methods: {'POST'}
-Path: /.well-known/agent-card.json Methods: {'HEAD', 'GET'}
-Path: /.well-known/agent.json Methods: {'HEAD', 'GET'}
-Path: /train Methods: {'POST'}
--------------------------
-INFO:     127.0.0.1:51873 - "GET /.well-known/agent-card.json HTTP/1.1" 200 OK

@@ -47,5 +47,75 @@
     "metadata": {
       "collection": "evaluation_results"
     }
+  },
+  "run_7a4e1cb38e744174b281888bf9aa345e": {
+    "id": "run_7a4e1cb38e744174b281888bf9aa345e",
+    "document": "{\"performance\": {\"research_quality_score\": 0}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_a1af1215fada4515b0bdf433f2a7a4df": {
+    "id": "run_a1af1215fada4515b0bdf433f2a7a4df",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_e9dbfda1ec854f7a8795f07d4818d4cb": {
+    "id": "run_e9dbfda1ec854f7a8795f07d4818d4cb",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_afa5dd995a30464a95ba944c9ac0a9bf": {
+    "id": "run_afa5dd995a30464a95ba944c9ac0a9bf",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_bba4ef6f48e94a0aa18b5c29a0e8f536": {
+    "id": "run_bba4ef6f48e94a0aa18b5c29a0e8f536",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_c1fd1a9d406e47d6b2fbaebbc33f2904": {
+    "id": "run_c1fd1a9d406e47d6b2fbaebbc33f2904",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_1f63d2a00a284529834d5fd14ed14e33": {
+    "id": "run_1f63d2a00a284529834d5fd14ed14e33",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_158675ca217549c5b0db88c63d926b76": {
+    "id": "run_158675ca217549c5b0db88c63d926b76",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_e6e1a386f8e2470eb1f8365fee3f1f75": {
+    "id": "run_e6e1a386f8e2470eb1f8365fee3f1f75",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_da5ce18fd7f244bfb34e6b37f3854909": {
+    "id": "run_da5ce18fd7f244bfb34e6b37f3854909",
+    "document": "{\"performance\": {}, \"execution\": {\"success\": false}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
   }
 }

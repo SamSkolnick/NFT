@@ -1,0 +1,43 @@
+{
+  "additionalInterfaces": null,
+  "capabilities": {
+    "extensions": null,
+    "pushNotifications": null,
+    "stateTransitionHistory": null,
+    "streaming": true
+  },
+  "defaultInputModes": [
+    "text"
+  ],
+  "defaultOutputModes": [
+    "text"
+  ],
+  "description": "A White Agent that codes and trains ML models.",
+  "documentationUrl": null,
+  "iconUrl": null,
+  "name": "Meta Kaggle White Agent",
+  "preferredTransport": "JSONRPC",
+  "protocolVersion": "0.3.0",
+  "provider": null,
+  "security": null,
+  "securitySchemes": null,
+  "signatures": null,
+  "skills": [
+    {
+      "description": "Train model for provided dataset.",
+      "examples": null,
+      "id": "train-model",
+      "inputModes": null,
+      "name": "Train model",
+      "outputModes": null,
+      "security": null,
+      "tags": [
+        "ml",
+        "training"
+      ]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": null,
+  "url": "https://depending-miles-tribunal-joint.trycloudflare.com/to_agent/d3d40dd27c144582bef0b84011a979e8",
+  "version": "0.1.0"
+}

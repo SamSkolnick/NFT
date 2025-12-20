@@ -54,8 +54,6 @@ async def submit_task_manual(green_url, solver_url):
     # 3. Submit
     submission_data = {
         "agent_url": solver_url,
-        "research_artifacts": "/path/to/research", 
-        "docker_image": "placeholder"
     }
     submission_json = json.dumps(submission_data)
     

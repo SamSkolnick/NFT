@@ -10,7 +10,7 @@ from multiprocessing import Process
 import subprocess
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, Response, HTMLResponse
+from fastapi.responses import RedirectResponse, Response, HTMLResponse, StreamingResponse
 import uvicorn
 from a2a.client import A2ACardResolver
 from a2a.types import AgentCard
@@ -98,24 +98,46 @@ async def proxy_to_agent_root(agent_id: str, request: Request):
 @app.api_route("/to_agent/{agent_id}/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def proxy_to_agent(agent_id: str, full_path: str, request: Request):
     agent_folder = os.path.join(".ab", "agents", agent_id)
+    if not os.path.exists(agent_folder):
+        return Response(content="Agent not found", status_code=404)
+        
     with open(os.path.join(agent_folder, "port"), "r") as f:
         agent_port = int(f.read().strip())
     
-    agent_url = f"http://localhost:{agent_port}/{full_path}"
+    agent_url = f"http://127.0.0.1:{agent_port}/{full_path}"
     
-    async with httpx.AsyncClient(follow_redirects=True, timeout=600) as client:
-        response = await client.request(
-            method=request.method,
-            url=agent_url,
-            content=await request.body(),
-            headers=request.headers,
-            params=request.query_params,
-        )
-        return Response(
-            content=response.content,
+    client = httpx.AsyncClient(follow_redirects=True, timeout=600)
+    
+    req = client.build_request(
+        method=request.method,
+        url=agent_url,
+        content=await request.body(),
+        headers=request.headers.raw,
+        params=request.query_params,
+    )
+
+    try:
+        response = await client.send(req, stream=True)
+        
+        async def stream_response():
+            try:
+                async for chunk in response.aiter_raw():
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
+
+        exclude_headers = ["content-length", "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"]
+        headers = {k: v for k, v in response.headers.items() if k.lower() not in exclude_headers}
+
+        return StreamingResponse(
+            stream_response(),
             status_code=response.status_code,
-            headers=dict(response.headers),
+            headers=headers,
         )
+    except Exception as e:
+        await client.aclose()
+        return Response(content=f"Proxy error: {str(e)}", status_code=502)
 
 @app.get("/.well-known/agent-card.json")
 async def get_root_agent_card(request: Request):
@@ -133,12 +155,20 @@ async def get_root_agent_card(request: Request):
     return await proxy_to_agent(agent_ids[0], ".well-known/agent-card.json", request)
 
 
-def find_unoccupied_port():
+def find_unoccupied_port(preferred_port: int = None):
+    if preferred_port:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("0.0.0.0", preferred_port))
+                return preferred_port
+            except OSError:
+                print(f"Preferred port {preferred_port} is occupied. Finding another...")
+
     while True:
         port = random.randint(10000, 60000)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
-                s.bind(("", port))
+                s.bind(("0.0.0.0", port))
                 return port
             except OSError:
                 continue
@@ -207,7 +237,7 @@ def maintain_agent_process(agent_id: str):
 
         if state == "pending":
             os.makedirs(agent_folder, exist_ok=True)
-            agent_port = find_unoccupied_port()
+            agent_port = find_unoccupied_port() # Random port for internal agent
             with open(os.path.join(agent_folder, "port"), "w") as f:
                 f.write(str(agent_port))
             
@@ -222,7 +252,7 @@ def maintain_agent_process(agent_id: str):
                  public_url_base = public_url_base.rstrip("/")
                  env["AGENT_URL"] = f"{public_url_base}/to_agent/{agent_id}"
             else:
-                 env["AGENT_URL"] = f"http://localhost:{settings.port}/to_agent/{agent_id}"
+                 env["AGENT_URL"] = f"http://127.0.0.1:{settings.port}/to_agent/{agent_id}"
 
             # Start Process
             # We assume 'run.sh' exists in CWD (SolverAgent/)
@@ -304,6 +334,12 @@ def main():
     p = Process(target=maintain_agent_process, args=(agent_id,))
     p.start()
     
+    # Dynamic Port Allocation for Controller
+    final_port = find_unoccupied_port(settings.port)
+    if final_port != settings.port:
+        print(f"!!! WARNING: Port {settings.port} was busy. Solver Controller starting on {final_port} instead. !!!")
+        settings.port = final_port
+
     uvicorn.run(app, host=settings.host, port=settings.port)
 
 if __name__ == "__main__":

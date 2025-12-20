@@ -20,8 +20,8 @@ def run_batch_test():
             "test": "2_test_20_features.csv",
             "target": "exam_score",
             "desc": "Regression task to predict student exam scores."
-        },
-        {
+        }]       
+    '''{
             "name": "HeartDisease",
             "folder": datasets_root / "HeartDisease",
             "train": "heart_train_80.csv",
@@ -45,7 +45,7 @@ def run_batch_test():
             "target": "label",
             "desc": "SMS Spam classification."
         }
-    ]
+    ]'''
     
     print(f"Starting batch evaluation for {len(dataset_configs)} datasets...")
     

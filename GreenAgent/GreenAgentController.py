@@ -11,7 +11,7 @@ import subprocess
 import httpx
 from importlib.resources import files
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, Response, HTMLResponse
+from fastapi.responses import RedirectResponse, Response, HTMLResponse, StreamingResponse
 import uvicorn
 from a2a.client import A2ACardResolver
 from a2a.types import AgentCard
@@ -166,20 +166,44 @@ async def proxy_to_agent(agent_id: str, full_path: str, request: Request):
     agent_folder = os.path.join(".ab", "agents", agent_id)
     with open(os.path.join(agent_folder, "port"), "r") as f:
         agent_port = int(f.read().strip())
+    
     agent_url = f"http://localhost:{agent_port}/{full_path}"
-    async with httpx.AsyncClient(follow_redirects=True, timeout=600) as client:
-        response = await client.request(
-            method=request.method,
-            url=agent_url,
-            content=await request.body(),
-            headers=request.headers,
-            params=request.query_params,
-        )
-        return Response(
-            content=response.content,
+    
+    # Use a per-request client or shared client. For streaming, we need to be careful with closure.
+    client = httpx.AsyncClient(follow_redirects=True, timeout=600)
+    
+    # Build the request to the internal agent
+    req = client.build_request(
+        method=request.method,
+        url=agent_url,
+        content=await request.body(),
+        headers=request.headers.raw,
+        params=request.query_params,
+    )
+
+    try:
+        response = await client.send(req, stream=True)
+        
+        async def stream_response():
+            try:
+                async for chunk in response.aiter_raw():
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
+
+        # Forward headers, but exclude ones that might interfere with stream
+        exclude_headers = ["content-length", "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"]
+        headers = {k: v for k, v in response.headers.items() if k.lower() not in exclude_headers}
+
+        return StreamingResponse(
+            stream_response(),
             status_code=response.status_code,
-            headers=dict(response.headers),
+            headers=headers,
         )
+    except Exception as e:
+        await client.aclose()
+        return Response(content=f"Proxy error: {str(e)}", status_code=502)
 
 # --- PATCH START ---
 @app.get("/.well-known/agent-card.json")

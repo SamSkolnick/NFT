@@ -1,0 +1,149 @@
+{
+  "run_16541ae659574b85ae8f5a58f02c944e": {
+    "id": "run_16541ae659574b85ae8f5a58f02c944e",
+    "document": "{\"performance\": {\"research_quality_score\": 85}, \"execution\": {\"success\": false, \"error\": \"Prediction evaluation failed: Mix of label input types (string and number)\"}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_030af4e8844041be87b15e397b274e43": {
+    "id": "run_030af4e8844041be87b15e397b274e43",
+    "document": "{\"performance\": {\"accuracy\": 1.0, \"f1_score\": 1.0, \"research_quality_score\": 85}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_a3619a1cf24b4485a5c446cb36a633e8": {
+    "id": "run_a3619a1cf24b4485a5c446cb36a633e8",
+    "document": "{\"performance\": {\"accuracy\": 1.0, \"f1_score\": 1.0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_a2fff867dced4fec90fd63bc42c7c368": {
+    "id": "run_a2fff867dced4fec90fd63bc42c7c368",
+    "document": "{\"performance\": {\"accuracy\": 0.6312849162011173, \"f1_score\": 0.4885972296625086, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_15f535908cd84939873651b91306b913": {
+    "id": "run_15f535908cd84939873651b91306b913",
+    "document": "{\"performance\": {\"accuracy\": 0.5754189944134078, \"f1_score\": 0.5749111223971559, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_380c8eed775d4f99a7c996b4519f086f": {
+    "id": "run_380c8eed775d4f99a7c996b4519f086f",
+    "document": "{\"performance\": {\"accuracy\": 0.5754189944134078, \"f1_score\": 0.5749111223971559, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_f59ed0e62ddb4bb3bdb260fd7f999d7b": {
+    "id": "run_f59ed0e62ddb4bb3bdb260fd7f999d7b",
+    "document": "{\"performance\": {\"accuracy\": 0.4748603351955307, \"f1_score\": 0.48270268503408964, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_034508600f8c4dc38aaa11aada6f3875": {
+    "id": "run_034508600f8c4dc38aaa11aada6f3875",
+    "document": "{\"performance\": {\"accuracy\": 0.5754189944134078, \"f1_score\": 0.5749111223971559, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_bc42a35db69a414c91cf696beae84833": {
+    "id": "run_bc42a35db69a414c91cf696beae84833",
+    "document": "{\"performance\": {\"accuracy\": 0.6312849162011173, \"f1_score\": 0.4885972296625086, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_4fd367ee0d6241a799df4c6d1e9176c0": {
+    "id": "run_4fd367ee0d6241a799df4c6d1e9176c0",
+    "document": "{\"performance\": {\"accuracy\": 0.5754189944134078, \"f1_score\": 0.5749111223971559, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_5db40e3b07ae458a8c3a30e2a15496ec": {
+    "id": "run_5db40e3b07ae458a8c3a30e2a15496ec",
+    "document": "{\"performance\": {\"accuracy\": 0.6312849162011173, \"f1_score\": 0.4885972296625086, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_19c353f6faf040ec86a995688263c9bc": {
+    "id": "run_19c353f6faf040ec86a995688263c9bc",
+    "document": "{\"performance\": {\"accuracy\": 0.6312849162011173, \"f1_score\": 0.4885972296625086, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_c7fb39dd1ce940dca6577ba7ec1b91cc": {
+    "id": "run_c7fb39dd1ce940dca6577ba7ec1b91cc",
+    "document": "{\"performance\": {\"accuracy\": 0.5754189944134078, \"f1_score\": 0.5749111223971559, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_06be52f0a4cc472796f41d72c4ffe54b": {
+    "id": "run_06be52f0a4cc472796f41d72c4ffe54b",
+    "document": "{\"performance\": {\"accuracy\": 0.5, \"f1_score\": 0.5448484848484848, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_78246101bb814447b48b5a48d362b748": {
+    "id": "run_78246101bb814447b48b5a48d362b748",
+    "document": "{\"performance\": {\"accuracy\": 0.5, \"f1_score\": 0.5448484848484848, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_1f3968c588e34db8b2496c8e323cd9d4": {
+    "id": "run_1f3968c588e34db8b2496c8e323cd9d4",
+    "document": "{\"performance\": {\"accuracy\": 0.62, \"f1_score\": 0.630045766590389, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_f14b37fb3d4540b1bcebe941e185e0ab": {
+    "id": "run_f14b37fb3d4540b1bcebe941e185e0ab",
+    "document": "{\"performance\": {\"accuracy\": 0.62, \"f1_score\": 0.630045766590389, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_ed0cfe944d204a598b4e3598c6fa8d08": {
+    "id": "run_ed0cfe944d204a598b4e3598c6fa8d08",
+    "document": "{\"performance\": {\"accuracy\": 0.62, \"f1_score\": 0.630045766590389, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_f9e81abc45e44220a3c351ce03ef7e7e": {
+    "id": "run_f9e81abc45e44220a3c351ce03ef7e7e",
+    "document": "{\"performance\": {\"accuracy\": 0.62, \"f1_score\": 0.630045766590389, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_82dfc835ab5346368cbf5fbba94737ef": {
+    "id": "run_82dfc835ab5346368cbf5fbba94737ef",
+    "document": "{\"performance\": {\"accuracy\": 0.62, \"f1_score\": 0.630045766590389, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  },
+  "run_82a21f2397c54a9ea336e291f38801c5": {
+    "id": "run_82a21f2397c54a9ea336e291f38801c5",
+    "document": "{\"performance\": {\"accuracy\": 0.62, \"f1_score\": 0.630045766590389, \"research_quality_score\": 0}, \"execution\": {\"success\": true}}",
+    "metadata": {
+      "collection": "evaluation_results"
+    }
+  }
+}

@@ -141,8 +141,6 @@ async def run_a2a_demo():
         # Prepare Submission
         submission_data = {
             "agent_url": f"http://localhost:{SOLVER_AGENT_PORT}",
-            "research_artifacts": "/path/to/research", 
-            "docker_image": "placeholder"
         }
         
         print("\n--- Submitting A2A Request ---")
@@ -222,8 +220,6 @@ async def submit_task(green_url, solver_url):
         # 2. Prepare Submission
         submission_data = {
             "agent_url": solver_url,
-            "research_artifacts": "/path/to/research", 
-            "docker_image": "placeholder"
         }
         submission_json = json.dumps(submission_data)
         
@@ -290,7 +286,14 @@ def main():
     
     subparsers.add_parser("demo-taubench", help="Run Tau Bench E2E Demo (Local)")
     
+    test = True
+    if test: 
+        asyncio.run(run_a2a_demo())
+        return
     args = parser.parse_args()
+
+
+   
     
     if args.command == "start-green":
         start_green(tunnel=args.tunnel)
@@ -309,7 +312,7 @@ def main():
     elif args.command == "stop-all":
         stop_all()
         
-    elif args.command == "demo-a2a":
+    elif args.command == "demo-a2a" or True:
         # Default local demo
         asyncio.run(run_a2a_demo())
 

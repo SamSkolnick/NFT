@@ -19,6 +19,7 @@ The **Green Agent** is an evaluation system designed to assess AI agents (white 
 - **Performance**: How accurate are the predictions?
 - **Constraints**: Does the agent respect time/memory limits?
 - **Research Quality**: Does the agent demonstrate novel, cross-domain approaches?
+- **Data Transfer**: Sends training and validation datasets directly as A2A artifacts (supports files up to 10MB).
 
 ### Key Features
 - **RAG-Enhanced Evaluation**: Uses ChromaDB to retrieve past evaluation contexts
@@ -32,15 +33,15 @@ The **Green Agent** is an evaluation system designed to assess AI agents (white 
 
 ### Prerequisites
 - Python 3.10+
-- Docker Desktop (running)
 - ChromaDB
 - Anthropic API key (optional, for research evaluation)
+- Gemini API key (optional, for research evaluation)
 
 ### Setup
 
 1. **Clone and navigate to the repository**:
 ```bash
-cd /Users/samuelskolnick/MLEngineer
+cd ./MLEngineer
 ```
 
 2. **Install dependencies**:
@@ -106,21 +107,14 @@ The `test_labels` CSV should have at minimum:
 ```bash
 python -m green_agent_cli evaluate \
   --config task_config.json \
-  --docker-image your-agent:latest \
-  --research-artifacts path/to/research/docs \
-  --no-pull-image
+  --agent-url http://localhost:8005
 ```
 
 **Full options**:
 ```bash
 python -m green_agent_cli evaluate \
   --config task_config.json \
-  --docker-image your-agent:latest \
-  --research-artifacts path/to/research \
-  --storage-method local \
-  --eval-command "python custom_eval.py" \
-  --docker-username <username> \
-  --docker-password <password> \
+  --agent-url http://localhost:8005 \
   --output results.json
 ```
 
@@ -276,9 +270,7 @@ EOF
 # 2. Run evaluation
 python -m green_agent_cli evaluate \
   --config task_config.json \
-  --docker-image titanic-white-agent:latest \
-  --research-artifacts white_agent_titanic/research \
-  --no-pull-image
+  --agent-url http://localhost:8005
 ```
 
 **Expected Output**:

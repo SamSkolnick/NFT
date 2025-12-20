@@ -101,10 +101,8 @@ def _load_dropbox_research(source: Union[str, Mapping[str, Any]]) -> Dict[str, s
 
 def evaluate_research(input_research: Union[str, os.PathLike, Mapping[str, Any]], storage: str = "local") -> int:
     """
-    Intakes research artifacts that may be stored locally, on S3, or in Dropbox.
-
-    Evaluates a proposed ML research plan using an LLM via OpenRouter.
-    Returns an integer score (0–100).
+    Grabs research artifacts from wherever they live (local, S3, Dropbox).
+    Uses an LLM to judge the research plan and spits back a score from 0 to 100.
     """
     storage_normalized = (storage or "local").lower()
     if storage_normalized == "local":
@@ -174,8 +172,10 @@ def evaluate_research(input_research: Union[str, os.PathLike, Mapping[str, Any]]
 
 
 """
-Research Quality Evaluator for ML Agent Benchmark
-Evaluates both research process (are sources real?) and impact (did it help?)
+This part handles evaluating the actual research quality. 
+It checks two things: 
+1. The process (did they actually cite real papers?)
+2. The impact (did the research actually help improve the results?)
 """
 
 import json
@@ -189,9 +189,9 @@ import time
 
 class ResearchEvaluator:
     """
-    Two-dimensional research evaluation:
-    1. Process Quality: Are citations real? Is research thorough?
-    2. Research Impact: Did research lead to better results?
+    We look at research from two angles:
+    1. Process: Are the citations real? Was the research thorough?
+    2. Impact: Did it actually lead to better performance?
     """
     
     def __init__(self, anthropic_api_key: str):
@@ -207,17 +207,16 @@ class ResearchEvaluator:
         past_context: str = ""
     ) -> Dict[str, Any]:
         """
-        Main entry point for research evaluation
+        The main way to trigger a research evaluation.
         
-        Args:
-            research_artifacts_path: Path to research notes/citations
-            code_path: Path to implementation code
-            task: Task specification with domain, baseline, etc.
-            performance: Achieved performance (0-1)
-            past_context: Retrieved context from similar past runs (RAG)
+        It needs:
+            - where the research notes are
+            - where the code is
+            - the task details
+            - the final score/performance
+            - any past context we pulled via RAG
             
-        Returns:
-            Dict with process_score, impact_score, final_score
+        Returns a dict with the breakdown of the scores.
         """
         
         # Extract citations from research artifacts
@@ -258,11 +257,8 @@ class ResearchEvaluator:
     
     def _extract_citations(self, research_path: str) -> List[Dict[str, Any]]:
         """
-        Extract citations from research artifacts
-        Looks for patterns like:
-        - [Smith et al. 2023] Title of Paper
-        - Smith et al. (2023). "Title of Paper"
-        - References section
+        Digs through the research artifacts to find citations.
+        It looks for standard patterns like [Author Year] or Author (Year).
         """
         
         citations = []
@@ -349,11 +345,11 @@ class ResearchEvaluator:
         research_path: str
     ) -> Dict[str, Any]:
         """
-        Evaluate research process quality:
-        1. Citation accuracy (do papers exist?)
-        2. Content accuracy (do claims match papers?)
-        3. Thoroughness (enough sources? recent?)
-        4. Originality (synthesis vs copy-paste?)
+        Check how good the research process was:
+        1. Are the papers real?
+        2. Does the actual paper content back up the claims?
+        3. Was it thorough enough?
+        4. Is it original or just a copy-paste job?
         """
         
         # 1. Verify citations exist
@@ -395,8 +391,8 @@ class ResearchEvaluator:
     
     def _verify_citations_exist(self, citations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Check if papers actually exist in Semantic Scholar
-        This catches hallucinated papers
+        Connects to Semantic Scholar to see if these papers actually exist.
+        This is how we catch any hallucinated citations.
         """
         
         if not citations:
@@ -482,9 +478,8 @@ class ResearchEvaluator:
         research_path: str
     ) -> Dict[str, Any]:
         """
-        Verify that claims about papers match actual paper content
-        
-        This catches: "Paper X uses method Y" when X doesn't mention Y
+        Checks if the claims made about the papers actually match what's in them.
+        Prevents saying "Paper X did Y" when it actually didn't.
         """
         
         if not citations:
@@ -585,7 +580,7 @@ class ResearchEvaluator:
     
     def _llm_verify_claims(self, claims: str, paper_abstract: str) -> Dict[str, Any]:
         """
-        Use LLM to verify if claims match paper content
+        Ask the LLM to double-check if the claims match the abstract.
         """
         
         try:
@@ -633,10 +628,10 @@ class ResearchEvaluator:
     
     def _evaluate_thoroughness(self, citations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Evaluate research thoroughness:
-        - Number of sources
-        - Recency of sources
-        - Diversity of sources
+        See how thorough they were based on:
+        - How many papers they cited
+        - How recent those papers are
+        - Whether they looked at a diverse set of sources
         """
         
         if not citations:
@@ -740,11 +735,11 @@ class ResearchEvaluator:
         past_context: str = ""
     ) -> Dict[str, Any]:
         """
-        Evaluate research impact:
-        1. Performance improvement over baseline
-        2. Research → code traceability (did they implement what they researched?)
-        3. Cross-domain transfer (your unique contribution!)
-        4. Novelty of approach
+        Decide how much the research actually mattered:
+        1. Did performance improve over the baseline?
+        2. Can we see the research ideas implemented in the code?
+        3. Did they bring in any cool cross-domain ideas?
+        4. Is the overall approach novel?
         """
         
         # 1. Performance improvement

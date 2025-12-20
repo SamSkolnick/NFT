@@ -1,0 +1,44 @@
+{
+  "additionalInterfaces": null,
+  "capabilities": {
+    "extensions": null,
+    "pushNotifications": null,
+    "stateTransitionHistory": null,
+    "streaming": true
+  },
+  "defaultInputModes": [
+    "text"
+  ],
+  "defaultOutputModes": [
+    "text"
+  ],
+  "description": "Evaluates Solver Agents by connecting to them and scoring their model predictions.",
+  "documentationUrl": null,
+  "iconUrl": null,
+  "name": "Green Agent Evaluator",
+  "preferredTransport": "JSONRPC",
+  "protocolVersion": "0.3.0",
+  "provider": null,
+  "security": null,
+  "securitySchemes": null,
+  "signatures": null,
+  "skills": [
+    {
+      "description": "Connects to a remote Solver Agent and sends the training/validation datasets as A2A artifacts. Scores the solver based on its returned predictions.",
+      "examples": null,
+      "id": "evaluate_solver",
+      "inputModes": null,
+      "name": "Evaluate Solver Agent",
+      "outputModes": null,
+      "security": null,
+      "tags": [
+        "evaluation",
+        "benchmark",
+        "nlp"
+      ]
+    }
+  ],
+  "supportsAuthenticatedExtendedCard": null,
+  "url": "http://127.0.0.1:8000/to_agent/82e0707093314067a8978e46e2fad7b7",
+  "version": "0.1.0"
+}

@@ -1,22 +1,24 @@
-# Interface for calling LLMs for agent to make it easier to switch them out
-# Works with both the modern `openai>=1.0` SDK and legacy 0.x versions.
+# Helper to make switching between LLM providers easier.
+# This works with both the new openai>=1.0 stuff and the older 0.x versions.
 import os
 from typing import Any, Dict
 
-try:  # Prefer the modern SDK if available.
+try:  # Try using the new SDK if it's there
     from openai import OpenAI as _OpenAIClient  # type: ignore
-except ImportError:  # pragma: no cover - depends on env setup
+except ImportError:
     _OpenAIClient = None
 
 
 def _resolve_api_key() -> str:
+    # Look for the OpenRouter key in the environment
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENROUTER_API_KEY environment variable not set.")
+        raise RuntimeError("Missing OPENROUTER_API_KEY environment variable.")
     return api_key
 
 
 def _call_via_new_sdk(prompt: str, api_key: str, base_url: str) -> str:
+    # Use the new OpenAI client style
     client = _OpenAIClient(base_url=base_url, api_key=api_key)  # type: ignore
     model_name = os.environ.get("OPENROUTER_MODEL", "alibaba/tongyi-deepresearch-30b-a3b")
     response = client.chat.completions.create(
@@ -25,15 +27,16 @@ def _call_via_new_sdk(prompt: str, api_key: str, base_url: str) -> str:
     )
     message = response.choices[0].message.content
     if not message:
-        raise RuntimeError("Received empty response from OpenRouter chat completion.")
+        raise RuntimeError("OpenRouter returned an empty response.")
     return message
 
 
 def _call_via_legacy_sdk(prompt: str, api_key: str, base_url: str) -> str:
+    # Fallback for older openai installations
     try:
         import openai  # type: ignore
     except ImportError as exc:
-        raise RuntimeError("openai package is not installed.") from exc
+        raise RuntimeError("openai package isn't installed.") from exc
 
     openai.api_key = api_key  # type: ignore[attr-defined]
     openai.api_base = base_url  # type: ignore[attr-defined]
@@ -45,19 +48,17 @@ def _call_via_legacy_sdk(prompt: str, api_key: str, base_url: str) -> str:
     )
     choices = response.get("choices") or []
     if not choices:
-        raise RuntimeError("Received empty response from OpenRouter chat completion (legacy SDK).")
+        raise RuntimeError("Empty response from OpenRouter (legacy SDK).")
     message = choices[0].get("message", {}).get("content")
     if not message:
-        raise RuntimeError("Received empty message content from OpenRouter chat completion (legacy SDK).")
+        raise RuntimeError("No message content in legacy response.")
     return str(message)
 
 
 def call_openrouter_tongyi(prompt: str) -> str:
     """
-    Issue a chat completion request against OpenRouter's Tongyi model.
-
-    Automatically adapts to both modern (`openai>=1.0`) and legacy (`openai<1.0`)
-    SDKs so environments with older dependencies continue to function.
+    Kicks off a chat request to OpenRouter's Tongyi model.
+    It automatically handles whichever OpenAI SDK version is installed.
     """
     api_key = _resolve_api_key()
     base_url = "https://openrouter.ai/api/v1"

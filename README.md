@@ -5,7 +5,7 @@ This project demonstrates the integration between a **Green Agent** (Evaluator) 
 ## Directory Structure
 
 *   `GreenAgent/`: Contains the Green Agent (Evaluator) code, controller, and server.
-*   `SolverAgent/`: Contains the Titanic Solver Agent (White Agent) code, model, and server.
+*   `SolverAgent/`: Contains the White Agent code, model, and server.
 *   `configs/`: Configuration files for evaluation tasks.
 *   `manage_agents.py`: Unified CLI to manage agents and run demonstrations.
 *   `requirements.txt`: Project dependencies.
@@ -18,7 +18,7 @@ This project demonstrates the integration between a **Green Agent** (Evaluator) 
     ```
 
 2.  **Environment Variables**:
-    Ensure you have `ANTHROPIC_API_KEY` set if you want to use the research evaluation features of the Green Agent.
+    Ensure you have `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` set if you want to use the research evaluation features of the Green Agent.
 
 ## Usage
 

@@ -30,8 +30,8 @@ from GreenAgent import GreenAgent
 import uvicorn
 from starlette.requests import Request
 from starlette.responses import Response
-from TauBenchAssessor import TauBenchAssessor
-from tau_bench.types import Action
+
+from starlette.staticfiles import StaticFiles
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,6 @@ class GreenAgentExecutor(AgentExecutor):
                     logger.info(f"Extracted agent URL from AgentBeats format: {agent_url}")
                     return {
                         "agent_url": agent_url,
-                        "research_artifacts": "/Users/nealprakash/194proj/NFT/SolverAgent"
                     }
                 else:
                     raise ValueError("Could not extract agent URL from AgentBeats format")
@@ -141,17 +140,9 @@ class GreenAgentExecutor(AgentExecutor):
         # Validate based on submission type
         if "agent_url" in submission:
             # Remote agent submission - only needs agent_url
-            if not submission.get("research_artifacts"):
-                submission["research_artifacts"] = "/Users/nealprakash/194proj/NFT/SolverAgent"
             return submission
         
-        # Docker submission - needs docker_image and research_artifacts
-        required = {"docker_image", "research_artifacts"}
-        missing = sorted(required - submission.keys())
-        if missing:
-            raise ValueError(f"Submission missing required fields: {', '.join(missing)}")
-
-        submission.setdefault("storage_method", "local")
+        # Default submission type
         return submission
 
 
@@ -258,9 +249,7 @@ def create_green_agent_app(
     url = public_url or os.environ.get("GREEN_AGENT_PUBLIC_URL") or os.environ.get("AGENT_URL") or "http://localhost:8000"
     skill_example = json.dumps(
         {
-            "docker_image": "white_agent:latest",
-            "research_artifacts": "/path/to/research",
-            "storage_method": "local",
+            "agent_url": "http://solver-agent.com",
         },
         indent=2,
     )
@@ -268,13 +257,12 @@ def create_green_agent_app(
     skill = AgentSkill(
         id="evaluate_solver",
         name="Evaluate Solver Agent",
-        description="Connects to a remote Solver Agent, requests predictions for hidden data, and returns performance metrics.",
+        description="Connects to a remote Solver Agent and sends the training/validation datasets as A2A artifacts. Scores the solver based on its returned predictions.",
         tags=["evaluation", "benchmark", "nlp"],
         input_schema={
             "type": "object",
             "properties": {
                 "agent_url": {"type": "string"},
-                "research_artifacts": {"type": "string"}
             }
         }
     )
@@ -333,65 +321,16 @@ except Exception as e:
 
 # --- TAU BENCH INTEGRATION ---
 
-tau_assessor = TauBenchAssessor()
+# --- TAU BENCH INTEGRATION MOVED TO TCP SERVER ---
+from TauBenchMCPServer import create_mcp_app
+mcp_server = create_mcp_app()
+app.mount("/mcp", mcp_server.sse_app)
 
-async def init_env(request: Request):
-    try:
-        data = await request.json()
-    except:
-        data = {}
-    session_id = tau_assessor.create_session(
-        env_name=data.get("env_name", "retail"),
-        task_split=data.get("task_split", "test")
-    )
-    return Response(content=json.dumps({"session_id": session_id}), media_type="application/json")
+# Host the data directory as static files for remote readiness
+data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+if os.path.exists(data_dir):
+    app.mount("/data", StaticFiles(directory=data_dir), name="data")
 
-async def reset_env(request: Request):
-    session_id = request.path_params["session_id"]
-    try:
-        data = await request.json()
-    except:
-        data = {}
-    try:
-        resp = tau_assessor.reset(session_id, data.get("task_index"))
-        return Response(content=resp.model_dump_json(), media_type="application/json")
-    except ValueError as e:
-        return Response(content=str(e), status_code=404)
-
-async def step_env(request: Request):
-    session_id = request.path_params["session_id"]
-    try:
-        action_data = await request.json()
-        action = Action(**action_data)
-        resp = tau_assessor.step(session_id, action)
-        return Response(content=resp.model_dump_json(), media_type="application/json")
-    except ValueError as e:
-        return Response(content=str(e), status_code=404)
-    except Exception as e:
-        return Response(content=f"Error stepping env: {e}", status_code=500)
-
-async def get_tools(request: Request):
-    session_id = request.path_params["session_id"]
-    try:
-        data = tau_assessor.get_tools_info(session_id)
-        return Response(content=json.dumps(data), media_type="application/json")
-    except ValueError as e:
-         return Response(content=str(e), status_code=404)
-
-async def get_wiki(request: Request):
-    session_id = request.path_params["session_id"]
-    try:
-        data = {"wiki": tau_assessor.get_wiki(session_id)}
-        return Response(content=json.dumps(data), media_type="application/json")
-    except ValueError as e:
-         return Response(content=str(e), status_code=404)
-
-# Register Routes Explicitly
-app.add_route("/env/init", init_env, methods=["POST"])
-app.add_route("/env/{session_id}/reset", reset_env, methods=["POST"])
-app.add_route("/env/{session_id}/step", step_env, methods=["POST"])
-app.add_route("/env/{session_id}/tools", get_tools, methods=["GET"])
-app.add_route("/env/{session_id}/wiki", get_wiki, methods=["GET"])
 
 if __name__ == "__main__":
     print(f"App Type: {type(app)}")

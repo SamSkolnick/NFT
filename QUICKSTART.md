@@ -59,9 +59,7 @@ source .env
 ```bash
 python -m green_agent_cli evaluate \
   --config task_config.json \
-  --docker-image titanic-white-agent:latest \
-  --research-artifacts white_agent_titanic/research \
-  --no-pull-image
+  --agent-url http://localhost:8005
 ```
 
 ---
@@ -94,9 +92,7 @@ python -c "from GreenAgent import GreenAgent; print('✓ Green Agent ready')"
 source .env  # If you have .env file
 python -m green_agent_cli evaluate \
   --config task_config.json \
-  --docker-image your-agent:latest \
-  --research-artifacts path/to/research \
-  --no-pull-image
+  --agent-url http://localhost:8005
 ```
 
 ### Interactive Testing
